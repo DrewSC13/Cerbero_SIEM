@@ -1,0 +1,13 @@
+[package]
+name = "cerbero-agent"
+description = "CERBERO managed endpoint agent bootstrap."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+cerbero-common = { path = "../cerbero-common" }
+
+[lints]
+workspace = true

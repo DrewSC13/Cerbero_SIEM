@@ -1,0 +1,17 @@
+# CERBERO code ownership. GitHub owner verified as DrewSC13.
+* @DrewSC13
+
+/Cargo.toml @DrewSC13
+/Cargo.lock @DrewSC13
+/go.work @DrewSC13
+/schemas/ @DrewSC13
+/migrations/ @DrewSC13
+/rules/ @DrewSC13
+/crates/cerbero-detection-core/ @DrewSC13
+/crates/cerbero-integrity/ @DrewSC13
+/docs/adr/ @DrewSC13
+/docs/security/ @DrewSC13
+/configs/nats/ @DrewSC13
+/.github/workflows/ @DrewSC13
+/SECURITY.md @DrewSC13
+/CODEOWNERS @DrewSC13

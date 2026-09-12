@@ -1,0 +1,9 @@
+go 1.27.1
+
+use (
+    ./services/cerbero-api
+    ./services/cerbero-coordinator
+    ./services/cerbero-ingest
+    ./services/cerbero-scheduler
+    ./services/cerbero-worker
+)

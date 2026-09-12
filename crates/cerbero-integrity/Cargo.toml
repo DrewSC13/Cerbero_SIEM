@@ -1,0 +1,10 @@
+[package]
+name = "cerbero-integrity"
+description = "Cryptographic integrity boundary; implementation starts with raw preservation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

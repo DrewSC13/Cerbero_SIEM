@@ -1,0 +1,13 @@
+[package]
+name = "cerbero-tui"
+description = "CERBERO terminal-first client bootstrap."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+cerbero-common = { path = "../cerbero-common" }
+
+[lints]
+workspace = true

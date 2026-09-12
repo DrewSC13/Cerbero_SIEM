@@ -1,0 +1,13 @@
+[package]
+name = "cerbero-normalizer"
+description = "CERBERO raw-to-OCSF normalizer bootstrap."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+cerbero-common = { path = "../cerbero-common" }
+
+[lints]
+workspace = true

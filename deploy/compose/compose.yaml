@@ -1,0 +1,82 @@
+name: cerbero
+
+services:
+  postgres:
+    image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?copy .env.example to .env first}
+      POSTGRES_USER: ${POSTGRES_USER:?copy .env.example to .env first}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env first}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ../../migrations/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.8-alpine@sha256:8f1dd1ec7213410276c8e9aee11b25b458fe9d53eee13ad8cfdf7c79e36aad17
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:?copy .env.example to .env first}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:?copy .env.example to .env first}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?copy .env.example to .env first}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "127.0.0.1:${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "127.0.0.1:${CLICKHOUSE_NATIVE_PORT:-9000}:9000"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ../../migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user $$CLICKHOUSE_USER --password $$CLICKHOUSE_PASSWORD --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  nats:
+    image: nats:2.14@sha256:d4a8980c1ee558257f196f86693ec919c7a8b8095dd678e2cb5ff1adcfe03ecb
+    restart: unless-stopped
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    environment:
+      NATS_ADMIN_USER: ${NATS_ADMIN_USER:?copy .env.example to .env first}
+      NATS_ADMIN_PASSWORD: ${NATS_ADMIN_PASSWORD:?copy .env.example to .env first}
+      NATS_INGEST_USER: ${NATS_INGEST_USER:?copy .env.example to .env first}
+      NATS_INGEST_PASSWORD: ${NATS_INGEST_PASSWORD:?copy .env.example to .env first}
+      NATS_RAW_PRESERVER_USER: ${NATS_RAW_PRESERVER_USER:?copy .env.example to .env first}
+      NATS_RAW_PRESERVER_PASSWORD: ${NATS_RAW_PRESERVER_PASSWORD:?copy .env.example to .env first}
+      NATS_NORMALIZER_USER: ${NATS_NORMALIZER_USER:?copy .env.example to .env first}
+      NATS_NORMALIZER_PASSWORD: ${NATS_NORMALIZER_PASSWORD:?copy .env.example to .env first}
+      NATS_DETECTION_USER: ${NATS_DETECTION_USER:?copy .env.example to .env first}
+      NATS_DETECTION_PASSWORD: ${NATS_DETECTION_PASSWORD:?copy .env.example to .env first}
+    ports:
+      - "127.0.0.1:${NATS_PORT:-4222}:4222"
+      - "127.0.0.1:${NATS_MONITOR_PORT:-8222}:8222"
+    volumes:
+      - nats-data:/data/jetstream
+      - ../../configs/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+
+  nats-bootstrap:
+    image: natsio/nats-box:0.19.7@sha256:ffce8bd103383f179f8c7f11cf645726acf5d17280706c530c3b342dbe16334c
+    profiles: ["bootstrap"]
+    depends_on:
+      - nats
+    environment:
+      NATS_URL: nats://nats:4222
+      NATS_ADMIN_USER: ${NATS_ADMIN_USER:?copy .env.example to .env first}
+      NATS_ADMIN_PASSWORD: ${NATS_ADMIN_PASSWORD:?copy .env.example to .env first}
+    volumes:
+      - ../../scripts/dev/nats-bootstrap.sh:/usr/local/bin/cerbero-nats-bootstrap:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/cerbero-nats-bootstrap"]
+
+volumes:
+  postgres-data:
+  clickhouse-data:
+  nats-data:

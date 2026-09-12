@@ -1,0 +1,46 @@
+# Build output
+/target/
+**/target/
+/bin/
+/dist/
+/build/
+
+# Go
+**/*.test
+**/coverage.out
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.venv/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime data
+/var/raw/*
+!/var/raw/README.md
+!/var/raw/.gitignore
+
+# External source documents
+*.pdf
+
+# Local reports
+/coverage/
+/reports/
