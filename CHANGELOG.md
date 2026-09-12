@@ -19,3 +19,4 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 - Prevent the Go build gate from leaving service executables in the repository working tree.
 - Make the remote-readiness gate reject untracked files as well as tracked or staged changes.
+- Make development health checks retry bounded service readiness and use a NATS CLI-compatible JetStream probe.

@@ -15,7 +15,7 @@ JetStream stream byte limits are local safeguards to avoid unbounded workstation
 
 ## Health
 
-`make dev-health` checks PostgreSQL readiness, ClickHouse queryability, NATS reachability, and stream existence. Application health/readiness contracts are introduced with each service implementation.
+`make dev-health` checks PostgreSQL readiness, ClickHouse queryability, NATS authentication/JetStream reachability, and stream existence. Each infrastructure probe is retried with a bounded 60-attempt, two-second interval so fresh local volumes can finish initialization without weakening the final readiness requirement. PostgreSQL readiness additionally requires the container PID 1 process to be the final `postgres` server, which prevents the temporary server used by `initdb` from producing a false-positive readiness result. The NATS probe uses `stream ls` rather than version-specific `server ping` flags. Application health/readiness contracts are introduced with each service implementation.
 
 ## Reset
 
