@@ -3,8 +3,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
-git diff --quiet || { echo "working tree has unstaged changes" >&2; exit 1; }
-git diff --cached --quiet || { echo "index has staged changes" >&2; exit 1; }
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "working tree is not clean (tracked, staged, or untracked changes exist)" >&2
+  git status --short >&2
+  exit 1
+fi
 if grep -q '@OWNER' CODEOWNERS; then
   echo "CODEOWNERS still contains @OWNER; run scripts/git/configure-codeowners.sh @your-owner before first remote push" >&2
   exit 1

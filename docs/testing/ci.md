@@ -22,7 +22,7 @@ lint
 
 build
   -> Rust workspace
-  -> every Go service module
+  -> every Go service module using an ephemeral build-output directory
   -> Python compileall
 
 test
@@ -40,6 +40,8 @@ integration
   -> ClickHouse
   -> NATS JetStream + v1 stream topology
 ```
+
+The Go build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
 
 ## E2E honesty
 

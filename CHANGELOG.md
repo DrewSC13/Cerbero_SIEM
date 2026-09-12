@@ -14,3 +14,8 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 - Local/CI parity through GNU Make and GitHub Actions.
 - Indexed the external architectural baseline without committing source PDF documents.
 - Architecture, development, operations, security, testing, and ADR documentation roots.
+
+### Fixed
+
+- Prevent the Go build gate from leaving service executables in the repository working tree.
+- Make the remote-readiness gate reject untracked files as well as tracked or staged changes.

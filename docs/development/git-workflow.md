@@ -78,6 +78,8 @@ Then push the current topic branch:
 git push -u origin <branch>
 ```
 
+`make remote-readiness` treats tracked, staged, and untracked files as a dirty working tree. Local build artifacts must never be silently ignored by the publication gate.
+
 No force-push to `main`; no history rewriting of published `main`; published release tags are immutable.
 
 ## Branch protection
