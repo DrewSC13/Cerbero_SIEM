@@ -6,6 +6,10 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 1 canonical `cerbero.contracts.v1` Protobuf source for envelope, raw/normalized events, transformations, errors, and shared enums.
+- Pinned Buf schema validation and Rust/Go code-generation configuration.
+- Semantic contract-source verification for field numbers, optional presence, enum values, and replay execution mode.
+- ADR-0005 documenting the minimal `TransformationStatus` closure and locked `ErrorCategory` lint exception.
 - Milestone 0 repository bootstrap.
 - Rust, Go, and Python workspace skeletons with executable smoke tests.
 - Versioned PostgreSQL and ClickHouse migration roots.

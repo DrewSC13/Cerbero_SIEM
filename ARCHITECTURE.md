@@ -43,6 +43,12 @@ Archive/datasets      -> Parquet/files
 
 CERBERO does not assume a global distributed ACID transaction across stores. Workflows rely on stable IDs, idempotency, retries, explicit state, reconciliation, outbox where appropriate, and provenance.
 
+## Contract boundary
+
+The canonical v1 internal wire definitions live under `schemas/protobuf/cerbero/contracts/v1/` in package `cerbero.contracts.v1`. The initial governed objects are `CerberoEnvelope`, `Producer`, `RawEvent`, `NormalizedEvent`, `Transformation`, and `CerberoError`. Rust and Go bindings are generated from this common source.
+
+Contract v1 preserves UUIDv7 identities, distinct event/ingest/processing time semantics, raw SHA-256 evidence hashing, immutable RawEvent derivation, structured errors, provenance, and explicit `LIVE` / `REPLAY` / `TEST` execution mode. ADR-0005 records the minimal `TransformationStatus` enum closure required because CONTRACTS v1.0 references that enum without defining its wire values.
+
 ## Event bus
 
 NATS JetStream is the initial durable bus. The v1 stream boundaries are:

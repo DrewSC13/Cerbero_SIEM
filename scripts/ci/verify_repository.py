@@ -13,10 +13,18 @@ RUST_VERSION = "1.98.1"
 GO_VERSION = "1.27.1"
 PYTHON_VERSION = "3.14.7"
 UV_VERSION = "0.12.13"
+BUF_VERSION = "1.72.0"
 
 REQUIRED_CONTRACT_ROOTS = [
     "schemas/protobuf/README.md",
     "schemas/protobuf/buf.yaml",
+    "schemas/protobuf/buf.gen.yaml",
+    "schemas/protobuf/cerbero/contracts/v1/common.proto",
+    "schemas/protobuf/cerbero/contracts/v1/envelope.proto",
+    "schemas/protobuf/cerbero/contracts/v1/raw_event.proto",
+    "schemas/protobuf/cerbero/contracts/v1/normalized_event.proto",
+    "schemas/protobuf/cerbero/contracts/v1/transformation.proto",
+    "schemas/protobuf/cerbero/contracts/v1/error.proto",
     "schemas/jsonschema/README.md",
     "schemas/ocsf/README.md",
 ]
@@ -49,6 +57,7 @@ REQUIRED = [
     "docs/adr/ADR-0002-local-task-runner.md",
     "docs/adr/ADR-0003-development-raw-store.md",
     "docs/adr/ADR-0004-bootstrap-toolchains-and-images.md",
+    "docs/adr/ADR-0005-contract-v1-enum-closure-and-code-generation.md",
     *REQUIRED_CONTRACT_ROOTS,
 ]
 
@@ -83,7 +92,7 @@ def verify_toolchain_pins() -> None:
     go_work = (ROOT / "go.work").read_text(encoding="utf-8")
     if not re.search(rf"(?m)^go\s+{re.escape(GO_VERSION)}\s*$", go_work):
         fail("go.work does not match bootstrap Go pin")
-    for go_mod in sorted((ROOT / "services").glob("*/go.mod")):
+    for go_mod in sorted((ROOT / "services").rglob("go.mod")):
         text = go_mod.read_text(encoding="utf-8")
         if not re.search(rf"(?m)^go\s+{re.escape(GO_VERSION)}\s*$", text):
             fail(f"{go_mod.relative_to(ROOT)} does not match bootstrap Go pin")
@@ -103,6 +112,10 @@ def verify_toolchain_pins() -> None:
         fail("uv.lock format metadata is unexpected")
     if uv_lock.get("requires-python") != ">=3.14,<3.15":
         fail("uv.lock Python range does not match pyproject.toml")
+
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    if f"github.com/bufbuild/buf/cmd/buf@v{BUF_VERSION}" not in workflow:
+        fail("GitHub Actions does not install the pinned Buf version")
 
 
 def verify_image_locks() -> None:

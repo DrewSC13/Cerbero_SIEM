@@ -5,7 +5,7 @@ SHELL := /usr/bin/env bash
 PYTHONPATH := python/cerbero-tooling/src
 export PYTHONPATH
 
-.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts integration e2e ci dev-init dev-up dev-bootstrap dev-health dev-down dev-reset remote-readiness
+.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate integration e2e ci dev-init dev-up dev-bootstrap dev-health dev-down dev-reset remote-readiness
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "; printf "CERBERO bootstrap targets:\n"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -61,8 +61,12 @@ python-check: ## Validate lock metadata, syntax, style, and unit tests.
 security-check: ## Run repository-local security checks.
 	@./scripts/security/check-no-secrets.sh
 
-contracts: ## Validate the governed contract roots for the current milestone.
+contracts: ## Validate canonical Protobuf contract source and schema compatibility invariants.
 	@python3 scripts/ci/verify_repository.py --contracts-only
+	@./scripts/contracts/check.sh
+
+contracts-generate: ## Generate pinned Rust and Go bindings from canonical Protobuf source.
+	@./scripts/contracts/generate.sh
 
 integration: ## Run Milestone 0 infrastructure integration tests (requires Docker Compose).
 	@./scripts/tests/milestone0-integration.sh
@@ -70,8 +74,8 @@ integration: ## Run Milestone 0 infrastructure integration tests (requires Docke
 e2e: ## Milestone 0 has no analytical E2E pipeline yet; verify the explicit gate.
 	@./scripts/tests/milestone0-e2e-gate.sh
 
-ci: verify format lint build test security-check contracts ## Local equivalent of the required bootstrap CI gate.
-	@echo "CERBERO Milestone 0 local CI gate: PASS"
+ci: verify format lint build test security-check contracts ## Local equivalent of the required CI gate.
+	@echo "CERBERO local CI gate: PASS"
 
 dev-init: ## Create local development environment file and runtime directories.
 	@./scripts/dev/init.sh

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// CerberoError is the stable error shape exchanged between CERBERO services.
+message CerberoError {
+  string code = 1;
+  ErrorCategory category = 2;
+  string message = 3;
+  bool retryable = 4;
+  string component = 5;
+  string request_id = 6;
+  map<string, string> metadata = 7;
+}
+
+// ErrorCategory values are locked by CONTRACTS v1.0 and intentionally retain their exact names.
+enum ErrorCategory {
+  ERROR_CATEGORY_UNSPECIFIED = 0;
+  VALIDATION = 1;
+  AUTHENTICATION = 2;
+  AUTHORIZATION = 3;
+  RATE_LIMIT = 4;
+  CONFLICT = 5;
+  PARSING = 6;
+  NORMALIZATION = 7;
+  STORAGE = 8;
+  TRANSPORT = 9;
+  DEPENDENCY = 10;
+  INTEGRITY = 11;
+  INTERNAL = 12;
+}

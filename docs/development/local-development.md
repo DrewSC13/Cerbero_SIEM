@@ -55,3 +55,17 @@ make dev-reset
 ```
 
 `dev-reset` deletes only Docker development volumes and generated files under `var/raw/`; it is not a production operation.
+
+
+## Contract tooling
+
+Milestone 1 requires Buf `1.72.0` for schema validation and generation. Install the pinned CLI without changing the system Go installation:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+GOBIN="$HOME/.local/bin" go install github.com/bufbuild/buf/cmd/buf@v1.72.0
+rehash  # zsh; use `hash -r` in bash if needed
+buf --version
+```
+
+`make doctor` reports the installed Buf version. `make contracts` requires the exact pin. `make contracts-generate` uses the remote plugins pinned in `schemas/protobuf/buf.gen.yaml`.

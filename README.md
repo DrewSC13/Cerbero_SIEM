@@ -2,7 +2,7 @@
 
 CERBERO is an open-source, terminal-first, API-first SIEM focused on traceability, reproducibility, auditability, interoperability, and least privilege.
 
-**Repository status:** Milestone 0 — Repository Bootstrap. The repository is intentionally not yet a functional SIEM. Milestone 0 establishes the reproducible build/test/documentation/infra foundation required to implement the real pipeline without disposable prototypes.
+**Repository status:** Milestone 1 — Common Contracts and Generated Bindings (in progress). Milestone 0 is complete and validated locally and in GitHub Actions. CERBERO is not yet a functional SIEM; Milestone 1 freezes the first real cross-language wire contracts before ingest implementation.
 
 ## Architectural source of truth
 
@@ -19,7 +19,7 @@ Core invariants include:
 - PostgreSQL, ClickHouse, Raw Store, and Parquet have separate authorities;
 - correctness > functionality > performance > scale.
 
-## Milestone 0 toolchains
+## Pinned development toolchains
 
 Reference versions are pinned for reproducibility:
 
@@ -28,6 +28,7 @@ Rust      1.98.1
 Go        1.27.1
 Python    3.14.7
 uv        0.12.13
+Buf       1.72.0
 GNU Make  local/CI task runner
 Docker    Compose v2-capable engine for integration checks
 ```
@@ -42,6 +43,7 @@ make rust-check
 make go-check
 make python-check
 make security-check
+make contracts
 ```
 
 With Docker Compose available:
@@ -97,7 +99,7 @@ The sequence may change only for a documented technical reason that preserves ar
 
 The repository uses Conventional Commits and topic branches. See `CONTRIBUTING.md` and `docs/development/git-workflow.md` before publishing changes.
 
-The GitHub owner is `DrewSC13`; `CODEOWNERS` is configured for `@DrewSC13`. The intended remote is `https://github.com/DrewSC13/cerbero.git`. The repository does not yet exist through the connected GitHub installation, so remote creation remains an external hosting step before the first push.
+The GitHub repository is `DrewSC13/Cerbero_SIEM`; `CODEOWNERS` is configured for `@DrewSC13`. `main` is the stable branch and implementation work uses topic branches such as `feature/common-contracts`.
 
 ## License
 
