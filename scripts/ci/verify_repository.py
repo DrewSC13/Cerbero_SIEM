@@ -14,6 +14,9 @@ GO_VERSION = "1.27.1"
 PYTHON_VERSION = "3.14.7"
 UV_VERSION = "0.12.13"
 BUF_VERSION = "1.72.0"
+PROST_VERSION = "0.14.4"
+SHA2_VERSION = "0.11.0"
+GO_PROTOBUF_VERSION = "1.36.12"
 
 REQUIRED_CONTRACT_ROOTS = [
     "schemas/protobuf/README.md",
@@ -25,6 +28,13 @@ REQUIRED_CONTRACT_ROOTS = [
     "schemas/protobuf/cerbero/contracts/v1/normalized_event.proto",
     "schemas/protobuf/cerbero/contracts/v1/transformation.proto",
     "schemas/protobuf/cerbero/contracts/v1/error.proto",
+    "crates/cerbero-common/src/generated/cerbero/contracts/v1/cerbero.contracts.v1.rs",
+    "services/internal/contracts/v1/common.pb.go",
+    "services/internal/contracts/v1/envelope.pb.go",
+    "services/internal/contracts/v1/error.pb.go",
+    "services/internal/contracts/v1/normalized_event.pb.go",
+    "services/internal/contracts/v1/raw_event.pb.go",
+    "services/internal/contracts/v1/transformation.pb.go",
     "schemas/jsonschema/README.md",
     "schemas/ocsf/README.md",
 ]
@@ -58,6 +68,16 @@ REQUIRED = [
     "docs/adr/ADR-0003-development-raw-store.md",
     "docs/adr/ADR-0004-bootstrap-toolchains-and-images.md",
     "docs/adr/ADR-0005-contract-v1-enum-closure-and-code-generation.md",
+    "docs/adr/ADR-0006-contract-v1-runtime-validation.md",
+    "crates/cerbero-common/src/contracts/mod.rs",
+    "crates/cerbero-common/src/contracts/validation.rs",
+    "crates/cerbero-common/tests/contracts_v1.rs",
+    "services/internal/contracts/go.mod",
+    "services/internal/contracts/go.sum",
+    "services/internal/contracts/validation/validation.go",
+    "services/internal/contracts/validation/validation_test.go",
+    "scripts/contracts/check-generated.sh",
+    "tests/fixtures/contracts/v1/raw_event_minimal.hex",
     *REQUIRED_CONTRACT_ROOTS,
 ]
 
@@ -85,6 +105,15 @@ def verify_toolchain_pins() -> None:
     if workspace_package.get("rust-version") != RUST_VERSION:
         fail("Cargo.toml Rust version does not match bootstrap pin")
 
+    common_cargo = load_toml("crates/cerbero-common/Cargo.toml")
+    common_dependencies = common_cargo.get("dependencies", {})
+    if common_dependencies.get("prost") != f"={PROST_VERSION}":
+        fail("cerbero-common prost version does not match the M1 pin")
+    if common_dependencies.get("prost-types") != f"={PROST_VERSION}":
+        fail("cerbero-common prost-types version does not match the M1 pin")
+    if common_dependencies.get("sha2") != f"={SHA2_VERSION}":
+        fail("cerbero-common sha2 version does not match the M1 pin")
+
     rust_toolchain = load_toml("rust-toolchain.toml")
     if rust_toolchain.get("toolchain", {}).get("channel") != RUST_VERSION:
         fail("rust-toolchain.toml does not match bootstrap Rust pin")
@@ -96,6 +125,13 @@ def verify_toolchain_pins() -> None:
         text = go_mod.read_text(encoding="utf-8")
         if not re.search(rf"(?m)^go\s+{re.escape(GO_VERSION)}\s*$", text):
             fail(f"{go_mod.relative_to(ROOT)} does not match bootstrap Go pin")
+
+    contracts_go_mod = (ROOT / "services/internal/contracts/go.mod").read_text(encoding="utf-8")
+    if not re.search(
+        rf"(?m)^require\s+google\.golang\.org/protobuf\s+v{re.escape(GO_PROTOBUF_VERSION)}\s*$",
+        contracts_go_mod,
+    ):
+        fail("contracts Go protobuf runtime does not match the generator pin")
 
     python_version = (ROOT / ".python-version").read_text(encoding="utf-8").strip()
     if python_version != PYTHON_VERSION:

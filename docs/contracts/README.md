@@ -39,6 +39,14 @@ Buf `1.72.0` is pinned for schema checks. The generation template pins:
 - Go protobuf plugin `v1.36.12`;
 - `neoeinstein-prost` plugin `v0.5.0`.
 
-`make contracts` performs repository contract-root verification, semantic field/number checks, Buf lint, and Buf build. `make contracts-generate` creates the Rust and Go bindings from the same canonical source.
+`make contracts` performs repository contract-root verification, semantic field/number checks, Buf lint/build, and a pinned regeneration drift check. `make contracts-generate` creates the Rust and Go bindings from the same canonical source. Generated output is committed but never edited by hand.
 
-Binding validation, serialization/deserialization fixtures, UUIDv7/timestamp/hash validators, duplicate/replay/parser-failure/hash-mismatch tests are completed in the generated-binding portion of Milestone 1 before the milestone is merged.
+## Runtime validation
+
+ADR-0006 keeps runtime validation outside generated files. Rust exposes generated types through `cerbero_common::contracts::v1`; Go exposes generated types from `cerbero/services/internal/contracts/v1` and keeps validators in the sibling `validation` package.
+
+M1 runtime validation covers UUIDv7 syntax, Protobuf timestamp ranges, envelope v1 identity/producer/payload presence, exact raw byte count, lowercase SHA-256 over exact raw bytes, and transformation status/execution-mode/error provenance. Source-declared `event_time` is validated when present but never fabricated.
+
+The exact normalized-hash field scope and first OCSF version remain open in the parsing/OCSF baseline, so M1 deliberately does not add policy for them.
+
+The shared wire fixture under `tests/fixtures/contracts/v1/` is decoded and re-encoded by both Rust and Go to detect language-binding incompatibility. Duplicate delivery, replay, parser failure, invalid raw metadata, and hash mismatch are covered by executable tests.

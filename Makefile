@@ -5,7 +5,7 @@ SHELL := /usr/bin/env bash
 PYTHONPATH := python/cerbero-tooling/src
 export PYTHONPATH
 
-.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate integration e2e ci dev-init dev-up dev-bootstrap dev-health dev-down dev-reset remote-readiness
+.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate contracts-generated-check integration e2e ci dev-init dev-up dev-bootstrap dev-health dev-down dev-reset remote-readiness
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "; printf "CERBERO bootstrap targets:\n"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -61,17 +61,21 @@ python-check: ## Validate lock metadata, syntax, style, and unit tests.
 security-check: ## Run repository-local security checks.
 	@./scripts/security/check-no-secrets.sh
 
-contracts: ## Validate canonical Protobuf contract source and schema compatibility invariants.
+contracts: ## Validate canonical Protobuf source and generated binding drift.
 	@python3 scripts/ci/verify_repository.py --contracts-only
 	@./scripts/contracts/check.sh
+	@./scripts/contracts/check-generated.sh
 
 contracts-generate: ## Generate pinned Rust and Go bindings from canonical Protobuf source.
 	@./scripts/contracts/generate.sh
 
+contracts-generated-check: ## Regenerate bindings and fail if tracked output drifts.
+	@./scripts/contracts/check-generated.sh
+
 integration: ## Run Milestone 0 infrastructure integration tests (requires Docker Compose).
 	@./scripts/tests/milestone0-integration.sh
 
-e2e: ## Milestone 0 has no analytical E2E pipeline yet; verify the explicit gate.
+e2e: ## Milestones 0-1 have no analytical E2E pipeline yet; verify the explicit gate.
 	@./scripts/tests/milestone0-e2e-gate.sh
 
 ci: verify format lint build test security-check contracts ## Local equivalent of the required CI gate.

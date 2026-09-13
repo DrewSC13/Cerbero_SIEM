@@ -2,7 +2,7 @@
 
 CERBERO is an open-source, terminal-first, API-first SIEM focused on traceability, reproducibility, auditability, interoperability, and least privilege.
 
-**Repository status:** Milestone 1 — Common Contracts and Generated Bindings (in progress). Milestone 0 is complete and validated locally and in GitHub Actions. CERBERO is not yet a functional SIEM; Milestone 1 freezes the first real cross-language wire contracts before ingest implementation.
+**Repository status:** Milestone 1 — Common Contracts and Generated Bindings (in progress). Milestone 0 is complete and validated locally and in GitHub Actions. Canonical v1 Protobuf source and generated Rust/Go bindings are now established; M1 is adding executable cross-language validation and compatibility tests before ingest implementation.
 
 ## Architectural source of truth
 
@@ -44,6 +44,7 @@ make go-check
 make python-check
 make security-check
 make contracts
+make contracts-generated-check
 ```
 
 With Docker Compose available:

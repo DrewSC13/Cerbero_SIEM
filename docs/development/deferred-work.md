@@ -5,7 +5,6 @@ This file lists known work that is intentionally outside repository bootstrap. T
 | Item | Why deferred | Required milestone / gate |
 | --- | --- | --- |
 | Pin GitHub Actions by immutable commit SHA | Action SHAs are hosting/supply-chain hardening beyond the local bootstrap; major tags are used initially | Before first public release; security hardening |
-| Complete generated Rust/Go bindings and cross-language contract fixtures | Canonical Protobuf source and generation policy are defined first so generated artifacts have one authority | Milestone 1 |
 | Implement ingest/RawEvent | Application functionality is intentionally not part of bootstrap | Milestone 2 |
 | Implement raw-preserver and segment manifests | Requires real contracts and event flow | Milestone 3 |
 | Select/pin OCSF version | Baseline makes OCSF canonical but implementation version belongs with mappings | Milestone 4 |

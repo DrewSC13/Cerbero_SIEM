@@ -21,3 +21,12 @@ make contracts-generate
 ```
 
 The canonical `.proto` files are authoritative. Generated Rust and Go artifacts must be regenerated after source changes and must never become an independent contract definition.
+
+## Generated output ownership
+
+Pinned generation produces:
+
+- Rust: `crates/cerbero-common/src/generated/cerbero/contracts/v1/cerbero.contracts.v1.rs`;
+- Go: `services/internal/contracts/v1/*.pb.go`.
+
+Hand-authored validation code lives outside those generated roots. `make contracts` regenerates both outputs and fails if Git observes drift.

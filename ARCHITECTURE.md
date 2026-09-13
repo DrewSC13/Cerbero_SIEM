@@ -46,8 +46,9 @@ CERBERO does not assume a global distributed ACID transaction across stores. Wor
 ## Contract boundary
 
 The canonical v1 internal wire definitions live under `schemas/protobuf/cerbero/contracts/v1/` in package `cerbero.contracts.v1`. The initial governed objects are `CerberoEnvelope`, `Producer`, `RawEvent`, `NormalizedEvent`, `Transformation`, and `CerberoError`. Rust and Go bindings are generated from this common source.
+Runtime validation wraps the generated bindings rather than redefining them: Rust uses `cerbero-common`, while Go uses the shared `services/internal/contracts` module. Generated output is checked for drift in CI; service-specific persistence, deduplication, retry, and normalization policy remain outside the wire-model package.
 
-Contract v1 preserves UUIDv7 identities, distinct event/ingest/processing time semantics, raw SHA-256 evidence hashing, immutable RawEvent derivation, structured errors, provenance, and explicit `LIVE` / `REPLAY` / `TEST` execution mode. ADR-0005 records the minimal `TransformationStatus` enum closure required because CONTRACTS v1.0 references that enum without defining its wire values.
+Contract v1 preserves UUIDv7 identities, distinct event/ingest/processing time semantics, raw SHA-256 evidence hashing, immutable RawEvent derivation, structured errors, provenance, and explicit `LIVE` / `REPLAY` / `TEST` execution mode. ADR-0005 records the minimal `TransformationStatus` enum closure required because CONTRACTS v1.0 references that enum without defining its wire values. ADR-0006 records the runtime-validation boundary and generated-binding drift policy.
 
 ## Event bus
 
