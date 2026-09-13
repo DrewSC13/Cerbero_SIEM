@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 3 raw-preserver Go service skeleton and preservation core with exact-byte Raw Store boundary, transport-idempotency state, stable outbox publication recovery, and explicit ACK/retry/isolate dispositions.
 - ADR-0008 defining the standalone Go raw-preserver boundary, transport idempotency, PostgreSQL locator/processed-message ownership, and transactional-outbox publication of `raw.persisted`.
 - Milestone 2 closure gates for backend-neutral ingest metrics, native-sequence gap detection fixtures, and NATS-outage behavior proving NOT READY plus retryable non-acceptance.
 - Milestone 2 syslog adapter skeleton and journald collector contract, preserving source evidence without freezing open syslog framing/UDP policy or journald canonicalization decisions.

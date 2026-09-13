@@ -4,6 +4,7 @@ use (
 	./services/cerbero-api
 	./services/cerbero-coordinator
 	./services/cerbero-ingest
+	./services/cerbero-raw-preserver
 	./services/cerbero-scheduler
 	./services/cerbero-worker
 	./services/internal/contracts
