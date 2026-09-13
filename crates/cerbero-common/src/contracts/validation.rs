@@ -35,11 +35,11 @@ impl fmt::Display for ContractViolation {
 
 impl std::error::Error for ContractViolation {}
 
-/// Validates a canonical RFC 9562 UUIDv7 string.
+/// Validates a canonical RFC 9562 `UUIDv7` string.
 ///
 /// # Errors
 ///
-/// Returns a [`ContractViolation`] when the value is not a canonical hyphenated UUIDv7 using the
+/// Returns a [`ContractViolation`] when the value is not a canonical hyphenated `UUIDv7` using the
 /// RFC variant.
 pub fn validate_uuid_v7(field: &'static str, value: &str) -> Result<(), ContractViolation> {
     let bytes = value.as_bytes();
@@ -49,7 +49,10 @@ pub fn validate_uuid_v7(field: &'static str, value: &str) -> Result<(), Contract
         || bytes[18] != b'-'
         || bytes[23] != b'-'
     {
-        return Err(ContractViolation::new(field, "must be a canonical UUID string"));
+        return Err(ContractViolation::new(
+            field,
+            "must be a canonical UUID string",
+        ));
     }
 
     for (index, byte) in bytes.iter().copied().enumerate() {
@@ -57,7 +60,10 @@ pub fn validate_uuid_v7(field: &'static str, value: &str) -> Result<(), Contract
             continue;
         }
         if !byte.is_ascii_hexdigit() {
-            return Err(ContractViolation::new(field, "contains non-hexadecimal characters"));
+            return Err(ContractViolation::new(
+                field,
+                "contains non-hexadecimal characters",
+            ));
         }
     }
 
@@ -66,7 +72,10 @@ pub fn validate_uuid_v7(field: &'static str, value: &str) -> Result<(), Contract
     }
 
     if !matches!(bytes[19].to_ascii_lowercase(), b'8' | b'9' | b'a' | b'b') {
-        return Err(ContractViolation::new(field, "must use the RFC UUID variant"));
+        return Err(ContractViolation::new(
+            field,
+            "must use the RFC UUID variant",
+        ));
     }
 
     Ok(())
@@ -89,7 +98,10 @@ pub fn validate_timestamp(
         ));
     }
     if !(0..=PROTO_TIMESTAMP_MAX_NANOS).contains(&timestamp.nanos) {
-        return Err(ContractViolation::new(field, "nanoseconds must be between 0 and 999999999"));
+        return Err(ContractViolation::new(
+            field,
+            "nanoseconds must be between 0 and 999999999",
+        ));
     }
     Ok(())
 }
@@ -150,7 +162,10 @@ fn validate_sha256(
 /// timestamp, payload schema, or payload is missing or invalid.
 pub fn validate_envelope(envelope: &CerberoEnvelope) -> Result<(), ContractViolation> {
     if envelope.contract_version != "1" {
-        return Err(ContractViolation::new("contract_version", "must equal 1 for v1 envelopes"));
+        return Err(ContractViolation::new(
+            "contract_version",
+            "must equal 1 for v1 envelopes",
+        ));
     }
     validate_uuid_v7("message_id", &envelope.message_id)?;
     if envelope.message_type.is_empty() {
@@ -165,7 +180,10 @@ pub fn validate_envelope(envelope: &CerberoEnvelope) -> Result<(), ContractViola
         return Err(ContractViolation::new("producer.component", "is required"));
     }
     if producer.component_version.is_empty() {
-        return Err(ContractViolation::new("producer.component_version", "is required"));
+        return Err(ContractViolation::new(
+            "producer.component_version",
+            "is required",
+        ));
     }
 
     validate_required_timestamp("emitted_at", envelope.emitted_at.as_ref())?;
@@ -197,7 +215,10 @@ pub fn validate_raw_event(event: &RawEvent) -> Result<(), ContractViolation> {
     let payload_len = u64::try_from(event.raw_payload.len())
         .map_err(|_| ContractViolation::new("raw_size", "payload length does not fit uint64"))?;
     if event.raw_size != payload_len {
-        return Err(ContractViolation::new("raw_size", "does not match raw_payload byte length"));
+        return Err(ContractViolation::new(
+            "raw_size",
+            "does not match raw_payload byte length",
+        ));
     }
 
     validate_sha256(

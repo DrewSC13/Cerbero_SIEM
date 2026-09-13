@@ -60,6 +60,9 @@ Infrastructure health checks use bounded retries because PostgreSQL and ClickHou
 
 Buf CLI `1.72.0` is installed in GitHub Actions and is required locally for `make contracts`. Contract generation uses plugin versions pinned in `schemas/protobuf/buf.gen.yaml`. The contract gate regenerates committed bindings and rejects any tracked or untracked drift under the generated output roots.
 
+Rust contract code is checked with Clippy under `-D warnings`; documentation comments must therefore satisfy the active Clippy documentation lints as part of the local and remote CI gate.
+Contract tests must also satisfy the active Clippy style lints; concrete default constructors are used where type inference would otherwise trigger `clippy::default_trait_access`.
+
 ## E2E honesty
 
 Milestones 0–1 do not claim an analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.

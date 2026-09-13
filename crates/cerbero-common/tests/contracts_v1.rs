@@ -1,6 +1,6 @@
 use cerbero_common::contracts::{
-    sha256_lower_hex, validate_envelope, validate_raw_event, validate_timestamp,
-    validate_transformation, validate_uuid_v7, v1,
+    sha256_lower_hex, v1, validate_envelope, validate_raw_event, validate_timestamp,
+    validate_transformation, validate_uuid_v7,
 };
 use prost::Message;
 use prost_types::{Any, Timestamp};
@@ -142,11 +142,8 @@ fn execution_modes_survive_serialization() {
 
 #[test]
 fn invalid_uuid_timestamp_and_missing_payload_are_rejected() {
-    let uuid_violation = validate_uuid_v7(
-        "message_id",
-        "67e55044-10b1-426f-9247-bb680e5fe0c8",
-    )
-    .expect_err("UUIDv4 must not satisfy a UUIDv7 field");
+    let uuid_violation = validate_uuid_v7("message_id", "67e55044-10b1-426f-9247-bb680e5fe0c8")
+        .expect_err("UUIDv4 must not satisfy a UUIDv7 field");
     assert_eq!(uuid_violation.field, "message_id");
 
     let timestamp_violation = validate_timestamp(
@@ -203,12 +200,16 @@ fn parser_failure_preserves_raw_event_and_error_provenance() {
             retryable: false,
             component: "cerbero-normalizer".to_owned(),
             request_id: String::new(),
-            metadata: Default::default(),
+            metadata: std::collections::HashMap::default(),
         }),
         execution_mode: 1,
     };
     validate_transformation(&transformation)
         .expect("failed transformation carries error provenance");
 
-    assert_eq!(raw.encode_to_vec(), before, "parser failure must not mutate RawEvent");
+    assert_eq!(
+        raw.encode_to_vec(),
+        before,
+        "parser failure must not mutate RawEvent"
+    );
 }
