@@ -72,6 +72,16 @@ Successful durable admission returns JSON containing `request_id`, `event_id`, a
 
 A durable-admission failure is represented as `CER-BUS-PUBLISH-FAILED`, `TRANSPORT`, retryable `true`, and HTTP `503 Service Unavailable`.
 
+## Request correlation across the event bus
+
+ADR-0007 closes the v1 representation gap between the required `request_id` propagation and the locked `CerberoEnvelope` shape. Request/response-originated bus publications carry a validated UUIDv7 request identifier in the NATS header:
+
+```text
+Cerbero-Request-Id: <request_id>
+```
+
+The header is observability/audit correlation metadata only. It does not replace `trace_id`, `causation_id`, or `correlation_id`, and it must never be used as an authentication or authorization input. Request-associated downstream publications should propagate the validated header while the request context remains relevant.
+
 ## Deliberately not implemented after Step 2
 
 `Prepare` is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside this commit:

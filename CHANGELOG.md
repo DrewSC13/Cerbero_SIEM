@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- ADR-0007 defining `Cerbero-Request-Id` as the v1 NATS trace-metadata carrier for request correlation without altering the locked `CerberoEnvelope` schema.
 - Milestone 2 JSON/HTTP ingest adapter with exact-byte JSON preservation, UUIDv7 request correlation, stable HTTP error mapping, and an injected durable-admission boundary required before any `2xx` response.
 - Milestone 2 common Go `IngestCore` with injectable authentication/authorization hooks, explicit payload-size policy, source metadata validation, UUIDv7 event/message/trace generation, gateway `ingest_time`, exact-byte SHA-256, `RawEvent` construction, and `CerberoEnvelope` wrapping.
 - RFC 9562 UUIDv7 generation using the Unix-millisecond layout and cryptographic randomness, with deterministic unit coverage.
