@@ -2,6 +2,17 @@
 
 Milestone 3 preservation-core tests live with the Go service so `make go-check` discovers them automatically.
 
+M3 Step 4 adds concrete raw.persisted builder coverage:
+
+- governed `RawEventPersisted` metadata is copied from the validated RawEvent without raw bytes;
+- durable Raw Store locator fields are copied exactly into the derived payload;
+- the derived envelope preserves tenant/trace/correlation and sets causation to the incoming message ID;
+- `persisted_at` and envelope `emitted_at` use the raw-preserver processing clock;
+- one generated UUIDv7 becomes both the outbox publication ID and envelope `message_id`;
+- the validated request ID remains transport metadata on the outbox record;
+- fixed identity/time inputs produce deterministic serialized envelope bytes;
+- generator failures or invalid generated UUIDs fail before outbox persistence.
+
 M3 Step 2 proves:
 
 - invalid raw.received envelopes produce an isolate disposition before storage effects;

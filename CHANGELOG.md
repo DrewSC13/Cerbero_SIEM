@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 3 concrete `RawEventPersisted` outbox builder producing deterministic `CerberoEnvelope` bytes with stable derived UUIDv7 identity, causation/trace propagation, raw locator metadata, and ADR-0007 request correlation.
 - Canonical `RawEventPersisted` v1 Protobuf source, generated Rust/Go bindings, shared wire fixture, semantic contract checks, and runtime validators for the durable Raw Store handoff.
 - ADR-0009 closing the missing v1 `RawEventPersisted` payload contract and its raw-locator/normalizer handoff semantics without retransmitting authoritative raw bytes.
 - Milestone 3 raw-preserver Go service skeleton and preservation core with exact-byte Raw Store boundary, transport-idempotency state, stable outbox publication recovery, and explicit ACK/retry/isolate dispositions.

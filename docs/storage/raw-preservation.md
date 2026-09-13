@@ -65,9 +65,23 @@ ADR-0009 closes the missing v1 payload semantics for `cerbero.v1.raw.persisted`.
 
 The canonical source now defines `RawEventPersisted` as `cerbero.raw_event_persisted.v1`, with generated Rust/Go bindings and runtime validation. A shared deterministic wire fixture proves cross-language serialization compatibility. Validation requires UUIDv7 event identity, required tenant/source/locator/pipeline metadata, valid timestamps, lowercase SHA-256 metadata, and `length == raw_size`; the semantic source gate also rejects any future `raw_payload` field in this message.
 
-The Step 2 `PublicationBuilder` remains abstract until the next increment wires this governed payload into the outbox builder and JetStream publisher.
+## M3 Step 4: concrete RawEventPersisted outbox builder
 
-## Still open after M3 Step 3B
+`RawPersistedBuilder` now implements the Step 2 publication boundary using the governed Step 3B contract. After the Raw Store reports verified durable evidence, the builder:
+
+- projects immutable RawEvent metadata without copying `raw_payload`;
+- attaches the verified `storage_uri`, `segment_id`, `offset`, and `length`;
+- records `persisted_at` as raw-preserver processing time;
+- generates one new UUIDv7 `message_id` for the derived publication;
+- preserves `tenant_id`, incoming `trace_id`, and `correlation_id`;
+- sets `causation_id` to the incoming `raw.received` `message_id`;
+- emits `message_type=RawEventPersisted` and `payload_schema=cerbero.raw_event_persisted.v1`;
+- serializes the complete `CerberoEnvelope<RawEventPersisted>` deterministically for the transactional outbox;
+- propagates the validated ADR-0007 request ID in `Publication.RequestID` for the future NATS publisher.
+
+The builder is invoked only when `(consumer_name, incoming message_id)` has no durable preservation record. The outbox stores the returned derived `message_id` and serialized envelope bytes; retry/recovery republishes that stored publication instead of rebuilding it.
+
+## Still open after M3 Step 4
 
 - concrete object-storage provider;
 - exact raw segment size/rotation;

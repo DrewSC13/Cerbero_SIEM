@@ -96,6 +96,7 @@ type MetadataStore interface {
 }
 
 // PublicationBuilder constructs the stable raw.persisted outbox message after evidence is durable.
+// RawPersistedBuilder is the governed production implementation; the interface keeps the core testable.
 type PublicationBuilder interface {
 	Build(context.Context, *contractsv1.CerberoEnvelope, *contractsv1.RawEvent, RawObject, string) (Publication, error)
 }
