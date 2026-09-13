@@ -8,6 +8,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTO_ROOT = ROOT / "schemas/protobuf/cerbero/contracts/v1"
+EVENT_BUS_SEMANTICS = ROOT / "docs/contracts/event-bus-semantics.md"
+FIXTURE_ROOT = ROOT / "tests/fixtures/contracts/v1"
 
 
 @dataclass(frozen=True)
@@ -220,11 +222,48 @@ def verify_semantics(source: str) -> None:
         fail("NormalizedEvent optional scalar presence must be preserved")
 
 
+
+def verify_definition_of_done_artifacts() -> None:
+    required_paths = (
+        EVENT_BUS_SEMANTICS,
+        FIXTURE_ROOT / "raw_event_minimal.hex",
+        FIXTURE_ROOT / "raw_event_invalid_size.hex",
+    )
+    for path in required_paths:
+        if not path.is_file():
+            fail(f"missing CONTRACTS v1 Definition-of-Done artifact: {path.relative_to(ROOT)}")
+
+    semantics = EVENT_BUS_SEMANTICS.read_text(encoding="utf-8")
+    required_semantics = (
+        "cerbero.v1.<domain>.<event>",
+        "cerbero.v1.raw.received",
+        "cerbero.v1.raw.persisted",
+        "cerbero.v1.dlq.<domain>",
+        "ACK policy",
+        "Retry policy",
+        "DLQ policy",
+        "input to durable ACK",
+    )
+    for token in required_semantics:
+        if token not in semantics:
+            fail(f"event-bus semantics documentation is missing required token: {token}")
+
+    for name in ("raw_event_minimal.hex", "raw_event_invalid_size.hex"):
+        text = (FIXTURE_ROOT / name).read_text(encoding="utf-8").strip()
+        if not text or len(text) % 2 != 0 or re.fullmatch(r"[0-9a-f]+", text) is None:
+            fail(f"fixture {name} must be non-empty lowercase hexadecimal wire bytes")
+
+    if (FIXTURE_ROOT / "raw_event_minimal.hex").read_text(encoding="utf-8").strip() == (
+        FIXTURE_ROOT / "raw_event_invalid_size.hex"
+    ).read_text(encoding="utf-8").strip():
+        fail("valid and invalid RawEvent fixtures must differ")
+
 def main() -> int:
     source = load_sources()
     verify_messages(source)
     verify_enums(source)
     verify_semantics(source)
+    verify_definition_of_done_artifacts()
     print("canonical contract semantics: PASS")
     return 0
 

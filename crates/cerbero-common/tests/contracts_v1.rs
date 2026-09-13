@@ -75,8 +75,10 @@ fn raw_hash_is_over_exact_bytes_and_mismatch_is_rejected() {
 
 #[test]
 fn raw_size_mismatch_is_invalid_payload_metadata() {
-    let mut event = raw_event();
-    event.raw_size += 1;
+    let fixture = decode_hex(include_str!(
+        "../../../tests/fixtures/contracts/v1/raw_event_invalid_size.hex"
+    ));
+    let event = v1::RawEvent::decode(fixture.as_slice()).expect("invalid fixture must decode");
     let violation = validate_raw_event(&event).expect_err("mismatched byte count must fail");
     assert_eq!(violation.field, "raw_size");
 }

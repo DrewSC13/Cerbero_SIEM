@@ -50,3 +50,5 @@ M1 runtime validation covers UUIDv7 syntax, Protobuf timestamp ranges, envelope 
 The exact normalized-hash field scope and first OCSF version remain open in the parsing/OCSF baseline, so M1 deliberately does not add policy for them.
 
 The shared wire fixture under `tests/fixtures/contracts/v1/` is decoded and re-encoded by both Rust and Go to detect language-binding incompatibility. Duplicate delivery, replay, parser failure, invalid raw metadata, and hash mismatch are covered by executable tests.
+
+The versioned NATS subject namespace, ACK-after-durable-effect rule, transient-only retry policy, DLQ semantics, and the required `input -> envelope -> RawEvent -> persistence -> ACK` scenario are frozen in [`event-bus-semantics.md`](event-bus-semantics.md). That document defines contract behavior without claiming the M2/M3 ingest and persistence implementations already exist.

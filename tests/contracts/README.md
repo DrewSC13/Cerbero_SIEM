@@ -14,7 +14,7 @@ The source gate (`make contracts`) verifies:
 Rust and Go runtime tests cover:
 
 - Protobuf serialization/deserialization;
-- one shared cross-language RawEvent wire fixture;
+- shared valid and invalid cross-language RawEvent wire fixtures;
 - UUIDv7 validation for CERBERO-owned IDs;
 - Protobuf timestamp validity;
 - exact raw SHA-256 and raw byte-count consistency;
@@ -23,4 +23,6 @@ Rust and Go runtime tests cover:
 - parser failure represented as `Transformation FAILED` with error provenance while RawEvent remains unchanged;
 - invalid raw metadata and raw hash mismatch rejection.
 
-Normalized hash scope, OCSF structural validation, parser fuzzing, persistence behavior, ACK/retry/DLQ integration, and service-level deduplication remain with their owning milestones rather than being simulated inside the common contract library.
+The valid fixture round-trips identically in Rust and Go. The invalid fixture preserves the same raw payload bytes and hash but declares an incorrect `raw_size`; both language validators must reject it.
+
+Normalized hash scope, OCSF structural validation, parser fuzzing, executable persistence/ACK behavior, retry scheduling, DLQ delivery, and service-level deduplication remain with their owning milestones rather than being simulated inside the common contract library. The governing ACK/retry/DLQ semantics and required ingest-to-ACK scenario are documented in `docs/contracts/event-bus-semantics.md`.

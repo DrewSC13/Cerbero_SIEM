@@ -42,7 +42,7 @@ contracts
 
 contract runtime tests
   -> Rust and Go Protobuf serialization/deserialization
-  -> shared cross-language wire fixture
+  -> shared valid/invalid cross-language wire fixtures
   -> UUIDv7 and Protobuf timestamp validation
   -> exact raw SHA-256 / byte-count validation
   -> duplicate message identity, replay, and parser-failure preservation
@@ -75,4 +75,4 @@ The baseline testing hierarchy remains:
 unit -> contract -> component -> integration -> E2E -> performance/resilience
 ```
 
-Parser fuzzing, contract compatibility, detection fixtures, idempotency/retry, security, resilience, and replay tests are introduced with the owning functionality rather than as empty test names.
+Parser fuzzing, detection fixtures, service-level idempotency/retry, security, resilience, and end-to-end replay tests are introduced with the owning functionality rather than as empty test names. M1 already enforces wire compatibility, duplicate-message identity, and execution-mode replay semantics at the contract layer.

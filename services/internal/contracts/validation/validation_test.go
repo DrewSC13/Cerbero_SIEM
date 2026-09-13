@@ -47,7 +47,7 @@ func fixtureRawEvent() *contractsv1.RawEvent {
 	}
 }
 
-func sharedFixture(t *testing.T) []byte {
+func sharedFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	_, source, _, ok := runtime.Caller(0)
 	if !ok {
@@ -55,7 +55,8 @@ func sharedFixture(t *testing.T) []byte {
 	}
 	path := filepath.Clean(filepath.Join(
 		filepath.Dir(source),
-		"../../../../tests/fixtures/contracts/v1/raw_event_minimal.hex",
+		"../../../../tests/fixtures/contracts/v1",
+		name,
 	))
 	contents, err := os.ReadFile(path)
 	if err != nil {
@@ -69,7 +70,7 @@ func sharedFixture(t *testing.T) []byte {
 }
 
 func TestSharedWireFixtureRoundTrips(t *testing.T) {
-	fixture := sharedFixture(t)
+	fixture := sharedFixture(t, "raw_event_minimal.hex")
 	event := new(contractsv1.RawEvent)
 	if err := proto.Unmarshal(fixture, event); err != nil {
 		t.Fatalf("unmarshal fixture: %v", err)
@@ -98,8 +99,11 @@ func TestRawHashMismatchIsRejected(t *testing.T) {
 }
 
 func TestRawSizeMismatchIsRejected(t *testing.T) {
-	event := fixtureRawEvent()
-	event.RawSize++
+	fixture := sharedFixture(t, "raw_event_invalid_size.hex")
+	event := new(contractsv1.RawEvent)
+	if err := proto.Unmarshal(fixture, event); err != nil {
+		t.Fatalf("unmarshal invalid fixture: %v", err)
+	}
 	if err := RawEvent(event); err == nil {
 		t.Fatal("expected size mismatch")
 	} else if got := err.(Violation).Field; got != "raw_size" {
