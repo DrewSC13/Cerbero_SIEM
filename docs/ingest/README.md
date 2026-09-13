@@ -48,11 +48,34 @@ Request failures returned by the core use `CerberoError` through `ingestcore.Err
 
 Implementation causes remain available through Go error unwrapping but are not copied into the stable wire-facing human message.
 
-## Deliberately not implemented in Step 1
+## M2 Step 2: JSON/HTTP adapter
+
+`services/cerbero-ingest/internal/httpingest` adds the transport adapter without weakening the durability contract.
+
+The adapter:
+
+- accepts only `POST` requests with JSON media type;
+- bounds the HTTP body independently before invoking `IngestCore`;
+- validates JSON syntax without decoding and reserializing the body, preserving the exact bytes used by the raw hash;
+- resolves source metadata through an injected transport resolver rather than hard-coding credentials or tenant/source identity;
+- uses a valid client `X-Request-ID` UUIDv7 when supplied, otherwise generates a CERBERO-owned UUIDv7;
+- always returns the request ID in `X-Request-ID`;
+- calls `IngestCore.Prepare` and then an injected `DurableAcceptor`;
+- emits `202 Accepted` only after `DurableAcceptor.Accept` returns success;
+- maps source/client failures to `4xx` and durable-admission/internal failures to `5xx`.
+
+`DurableAcceptor` is deliberately an interface in Step 2. The production JetStream implementation arrives in the following increment. Until that implementation is wired into the process, the adapter is component-testable but is not exposed as a production listening endpoint.
+
+### HTTP response model
+
+Successful durable admission returns JSON containing `request_id`, `event_id`, and `message_id`. Error responses expose the stable `CerberoError` shape and do not serialize wrapped implementation causes.
+
+A durable-admission failure is represented as `CER-BUS-PUBLISH-FAILED`, `TRANSPORT`, retryable `true`, and HTTP `503 Service Unavailable`.
+
+## Deliberately not implemented after Step 2
 
 `Prepare` is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside this commit:
 
-- JSON/HTTP request/response adapter and `X-Request-ID` handling;
 - connection/rate/timeouts and per-frontend limit configuration;
 - syslog adapter skeleton and journald collector contract;
 - JetStream publish to `cerbero.v1.raw.received`;

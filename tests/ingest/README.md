@@ -1,8 +1,17 @@
 # Ingest tests
 
-Milestone 2 unit tests currently live with the Go implementation under `services/cerbero-ingest/internal/ingestcore` so `make go-check` executes them for the owning module.
+Milestone 2 tests live with the Go implementation so `make go-check` executes them for the owning module.
 
-Step 1 covers:
+Step 2 JSON/HTTP component coverage:
+
+- preserves the exact JSON request-body bytes across syntax validation;
+- generates or propagates UUIDv7 `X-Request-ID`;
+- rejects invalid method, media type, malformed JSON, and oversized bodies before durable admission;
+- maps ingest-core source errors to `4xx`;
+- requires the injected durable acceptor before reporting `202 Accepted`;
+- maps durable-admission failure to retryable `CER-BUS-PUBLISH-FAILED` and HTTP `503`.
+
+Step 1 common-core coverage:
 
 - exact-byte raw preservation and SHA-256 construction;
 - generated UUIDv7 event/message/trace identities;
@@ -15,4 +24,4 @@ Step 1 covers:
 - stable `CerberoError` mapping for ingest-core failures;
 - UUIDv7 version/variant/timestamp layout and secure-random failure behavior.
 
-HTTP acceptance, JetStream durability, NATS outages, retry/DLQ, and raw-preserver crash/idempotency tests remain future milestone work and must not be reported as passing yet.
+The HTTP component tests use an injected durable-acceptor fake and therefore do not claim real JetStream durability. Production JetStream admission, NATS outage/readiness behavior, retry/DLQ, and raw-preserver crash/idempotency tests remain future work and must not be reported as passing yet.
