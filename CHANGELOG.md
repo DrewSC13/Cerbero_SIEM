@@ -6,6 +6,10 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 2 common Go `IngestCore` with injectable authentication/authorization hooks, explicit payload-size policy, source metadata validation, UUIDv7 event/message/trace generation, gateway `ingest_time`, exact-byte SHA-256, `RawEvent` construction, and `CerberoEnvelope` wrapping.
+- RFC 9562 UUIDv7 generation using the Unix-millisecond layout and cryptographic randomness, with deterministic unit coverage.
+- Ingest-core tests for exact-byte immutability, event/ingest time separation, sensor policy, unknown encoding preservation, stable Cerbero errors, payload limits, authn/authz failures, and protobuf payload round-trip.
+- Milestone 2 ingest implementation/testing documentation that explicitly withholds HTTP acceptance until durable JetStream admission exists.
 - Milestone 1 canonical `cerbero.contracts.v1` Protobuf source for envelope, raw/normalized events, transformations, errors, and shared enums.
 - Pinned Buf schema validation and Rust/Go code-generation configuration.
 - Semantic contract-source verification for field numbers, optional presence, enum values, and replay execution mode.

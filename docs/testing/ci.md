@@ -47,6 +47,14 @@ contract runtime tests
   -> exact raw SHA-256 / byte-count validation
   -> duplicate message identity, replay, and parser-failure preservation
 
+Milestone 2 ingest-core unit tests (through the Go gates)
+  -> UUIDv7 generation and secure-random failure behavior
+  -> exact-byte RawEvent construction and immutable input-copy semantics
+  -> event_time / ingest_time separation
+  -> payload limits and source-identity policy
+  -> authentication + events.ingest authorization hooks
+  -> stable CerberoError mapping and envelope payload round-trip
+
 integration
   -> Compose config
   -> PostgreSQL
@@ -65,7 +73,7 @@ Contract tests must also satisfy the active Clippy style lints; concrete default
 
 ## E2E honesty
 
-Milestones 0–1 do not claim an analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
+Milestones 0–1 and M2 Step 1 do not claim a durable ingest or analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real ingest E2E requires JetStream admission and raw preservation; the full analytical E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
 
 ## Future hierarchy
 

@@ -2,7 +2,7 @@
 
 CERBERO is an open-source, terminal-first, API-first SIEM focused on traceability, reproducibility, auditability, interoperability, and least privilege.
 
-**Repository status:** Milestone 1 — Common Contracts and Generated Bindings (in progress). Milestone 0 is complete and validated locally and in GitHub Actions. Canonical v1 Protobuf source and generated Rust/Go bindings are now established; M1 is adding executable cross-language validation and compatibility tests before ingest implementation.
+**Repository status:** Milestone 2 — RawEvent + ingest (in progress). Milestones 0 and 1 are complete and validated locally and in GitHub Actions. Canonical v1 contracts, generated Rust/Go bindings, runtime validation, and contract compatibility tests are established; M2 is implementing the common ingest boundary before durable event-bus publication.
 
 ## Architectural source of truth
 
@@ -100,7 +100,7 @@ The sequence may change only for a documented technical reason that preserves ar
 
 The repository uses Conventional Commits and topic branches. See `CONTRIBUTING.md` and `docs/development/git-workflow.md` before publishing changes.
 
-The GitHub repository is `DrewSC13/Cerbero_SIEM`; `CODEOWNERS` is configured for `@DrewSC13`. `main` is the stable branch and implementation work uses topic branches such as `feature/common-contracts`.
+The GitHub repository is `DrewSC13/Cerbero_SIEM`; `CODEOWNERS` is configured for `@DrewSC13`. `main` is the stable branch and implementation work uses topic branches such as `feature/raw-event-ingest`.
 
 ## License
 

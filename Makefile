@@ -75,7 +75,7 @@ contracts-generated-check: ## Regenerate bindings and fail if tracked output dri
 integration: ## Run Milestone 0 infrastructure integration tests (requires Docker Compose).
 	@./scripts/tests/milestone0-integration.sh
 
-e2e: ## Milestones 0-1 have no analytical E2E pipeline yet; verify the explicit gate.
+e2e: ## M2 Step 1 has no durable ingest/analytical E2E pipeline yet; verify the explicit gate.
 	@./scripts/tests/milestone0-e2e-gate.sh
 
 ci: verify format lint build test security-check contracts ## Local equivalent of the required CI gate.
