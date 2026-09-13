@@ -108,6 +108,49 @@ func validRequest() Request {
 	}
 }
 
+func TestBeginAuthenticatesAndAuthorizesBeforePayloadPreparation(t *testing.T) {
+	core, ids, authenticator, authorizer := testCore(t, 1024, false)
+	request := validRequest()
+
+	admission, err := core.Begin(context.Background(), requestAdmissionMetadata(request))
+	if err != nil {
+		t.Fatalf("Begin() error = %v", err)
+	}
+	if authenticator.calls != 1 || authorizer.calls != 1 {
+		t.Fatalf("hook calls after Begin = authn:%d authz:%d, want 1 each", authenticator.calls, authorizer.calls)
+	}
+	if ids.calls != 0 {
+		t.Fatalf("ID calls after Begin = %d, want 0 before payload preparation", ids.calls)
+	}
+
+	if _, err := admission.Prepare(request); err != nil {
+		t.Fatalf("Admission.Prepare() error = %v", err)
+	}
+	if ids.calls != 3 {
+		t.Fatalf("ID calls after payload preparation = %d, want 3", ids.calls)
+	}
+	if authenticator.calls != 1 || authorizer.calls != 1 {
+		t.Fatalf("admission must not re-run hooks: authn=%d authz=%d", authenticator.calls, authorizer.calls)
+	}
+}
+
+func TestAdmissionRejectsIdentityMetadataMutationAfterAuthorization(t *testing.T) {
+	core, ids, _, _ := testCore(t, 1024, false)
+	request := validRequest()
+
+	admission, err := core.Begin(context.Background(), requestAdmissionMetadata(request))
+	if err != nil {
+		t.Fatalf("Begin() error = %v", err)
+	}
+	request.SourceID = "different-source"
+
+	_, err = admission.Prepare(request)
+	assertContractError(t, err, codeInvalidPayload, contractsv1.ErrorCategory_VALIDATION, false)
+	if ids.calls != 0 {
+		t.Fatalf("ID calls = %d, want 0 after admission metadata mutation", ids.calls)
+	}
+}
+
 func TestPrepareBuildsValidatedRawEventAndEnvelopeFromExactBytes(t *testing.T) {
 	core, ids, authenticator, authorizer := testCore(t, 1024, false)
 	request := validRequest()

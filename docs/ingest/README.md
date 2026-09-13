@@ -16,7 +16,9 @@ Milestone 2 turns the locked `RawEvent` contract into executable ingest behavior
 8. construct and validate `RawEvent`;
 9. wrap that `RawEvent` in a validated `CerberoEnvelope` using `RawEventReceived` and `cerbero.raw_event.v1`.
 
-The core copies `raw_payload` before hashing and contract construction. Callers may mutate their input buffer after `Prepare` returns without changing the evidence bytes retained by the returned `RawEvent`.
+The core exposes `Begin` for streaming/request-response frontends. `Begin` performs authentication, authorization, and source-policy validation before payload receipt and returns an admission bound to the authorized metadata. That admission then prepares the payload without re-running auth hooks and rejects any identity-metadata substitution. The one-shot `Core.Prepare` path remains as a compatibility wrapper for callers that already hold the complete payload.
+
+The core copies `raw_payload` before hashing and contract construction. Callers may mutate their input buffer after preparation returns without changing the evidence bytes retained by the returned `RawEvent`.
 
 ## Time semantics
 
@@ -55,12 +57,13 @@ Implementation causes remain available through Go error unwrapping but are not c
 The adapter:
 
 - accepts only `POST` requests with JSON media type;
-- bounds the HTTP body independently before invoking `IngestCore`;
-- validates JSON syntax without decoding and reserializing the body, preserving the exact bytes used by the raw hash;
 - resolves source metadata through an injected transport resolver rather than hard-coding credentials or tenant/source identity;
+- calls `IngestCore.Begin` to authenticate and authorize `events.ingest` before reading the request body;
+- bounds the HTTP body independently after admission has succeeded;
+- validates JSON syntax without decoding and reserializing the body, preserving the exact bytes used by the raw hash;
 - uses a valid client `X-Request-ID` UUIDv7 when supplied, otherwise generates a CERBERO-owned UUIDv7;
 - always returns the request ID in `X-Request-ID`;
-- calls `IngestCore.Prepare` and then an injected `DurableAcceptor`;
+- calls the authorized admission's `Prepare` method and then the injected `DurableAcceptor`;
 - emits `202 Accepted` only after `DurableAcceptor.Accept` returns success;
 - maps source/client failures to `4xx` and durable-admission/internal failures to `5xx`.
 
@@ -100,9 +103,15 @@ Step 3 deliberately does not add internal publish retries. Retry attempts, backo
 
 `make integration` now exercises the acceptor against the real development JetStream using the least-privilege `cerbero_ingest` identity, verifies the stored subject and transport headers with the development admin identity, and removes the integration message afterward.
 
+## M2 Step 4A: staged admission before payload receipt
+
+Before the JSON/HTTP adapter is wired into a listening process, the common-core boundary is staged so the locked acceptance order is enforceable for streaming transports. The adapter resolves presented transport metadata, calls `IngestCore.Begin` for authentication and `events.ingest` authorization, and only then reads the bounded HTTP body. The returned admission is bound to the authorized request/source/sensor/remote-identity/transport metadata; any substitution before `RawEvent` construction is rejected before CERBERO event/message/trace IDs are allocated.
+
+The existing one-shot `Core.Prepare` method remains a compatibility wrapper for non-streaming callers that already hold the complete payload. Production request/response frontends must use the staged `Begin` flow.
+
 ## Deliberately not implemented after Step 3
 
-`Prepare` is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside this commit:
+Payload preparation is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside this commit:
 
 - connection/rate/timeouts and per-frontend limit configuration;
 - syslog adapter skeleton and journald collector contract;

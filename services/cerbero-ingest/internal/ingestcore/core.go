@@ -76,6 +76,16 @@ type Request struct {
 	RawPayload     []byte
 }
 
+// Admission is an authenticated and authorized ingest session bound to source metadata.
+type Admission interface {
+	Prepare(Request) (*Result, error)
+}
+
+type authorizedAdmission struct {
+	core     *Core
+	metadata AdmissionMetadata
+}
+
 // Result contains the immutable RawEvent and its publish-ready common envelope.
 // It is not an acceptance response: durable JetStream admission is intentionally outside M2 Step 1.
 type Result struct {
@@ -138,18 +148,9 @@ func New(config Config) (*Core, error) {
 	}, nil
 }
 
-// Prepare authenticates and authorizes source metadata, then constructs a validated RawEvent and envelope.
-// It deliberately does not publish to JetStream or report durable acceptance.
-func (c *Core) Prepare(ctx context.Context, request Request) (*Result, error) {
-	metadata := AdmissionMetadata{
-		RequestID:      request.RequestID,
-		TenantID:       request.TenantID,
-		SourceID:       request.SourceID,
-		SensorID:       request.SensorID,
-		RemoteIdentity: request.RemoteIdentity,
-		Transport:      request.Transport,
-	}
-
+// Begin authenticates and authorizes source metadata before a frontend receives the raw payload.
+// The returned Admission is bound to the authorized metadata and cannot be reused with different identity metadata.
+func (c *Core) Begin(ctx context.Context, metadata AdmissionMetadata) (Admission, error) {
 	principal, err := c.authenticator.Authenticate(ctx, metadata)
 	if err != nil || principal.ID == "" {
 		if err == nil {
@@ -160,7 +161,7 @@ func (c *Core) Prepare(ctx context.Context, request Request) (*Result, error) {
 			contractsv1.ErrorCategory_AUTHENTICATION,
 			"source authentication failed",
 			false,
-			request.RequestID,
+			metadata.RequestID,
 			err,
 			nil,
 		)
@@ -171,13 +172,46 @@ func (c *Core) Prepare(ctx context.Context, request Request) (*Result, error) {
 			contractsv1.ErrorCategory_AUTHORIZATION,
 			"source is not authorized to ingest events",
 			false,
-			request.RequestID,
+			metadata.RequestID,
 			err,
 			nil,
 		)
 	}
+	if err := c.validateAdmissionMetadata(metadata); err != nil {
+		return nil, err
+	}
 
-	if err := c.validateRequest(request); err != nil {
+	return &authorizedAdmission{
+		core:     c,
+		metadata: metadata,
+	}, nil
+}
+
+// Prepare is the one-shot compatibility path for frontends that already have the complete payload.
+// Streaming/request-response frontends must call Begin before receiving the payload.
+func (c *Core) Prepare(ctx context.Context, request Request) (*Result, error) {
+	admission, err := c.Begin(ctx, requestAdmissionMetadata(request))
+	if err != nil {
+		return nil, err
+	}
+	return admission.Prepare(request)
+}
+
+// Prepare constructs a validated RawEvent and envelope after source admission has completed.
+func (a *authorizedAdmission) Prepare(request Request) (*Result, error) {
+	if requestAdmissionMetadata(request) != a.metadata {
+		return nil, a.core.invalidPayload(
+			a.metadata.RequestID,
+			"admission_metadata",
+			"ingest metadata changed after authentication and authorization",
+			nil,
+		)
+	}
+	return a.core.prepare(request)
+}
+
+func (c *Core) prepare(request Request) (*Result, error) {
+	if err := c.validatePayload(request); err != nil {
 		return nil, err
 	}
 
@@ -275,24 +309,28 @@ func (c *Core) generateID(requestID, field string) (string, error) {
 	return value, nil
 }
 
-func (c *Core) validateRequest(request Request) error {
+func (c *Core) validateAdmissionMetadata(metadata AdmissionMetadata) error {
 	required := []struct {
 		field string
 		value string
 	}{
-		{field: "tenant_id", value: request.TenantID},
-		{field: "source_id", value: request.SourceID},
-		{field: "remote_identity", value: request.RemoteIdentity},
-		{field: "transport", value: request.Transport},
+		{field: "tenant_id", value: metadata.TenantID},
+		{field: "source_id", value: metadata.SourceID},
+		{field: "remote_identity", value: metadata.RemoteIdentity},
+		{field: "transport", value: metadata.Transport},
 	}
 	for _, item := range required {
 		if item.value == "" {
-			return c.invalidPayload(request.RequestID, item.field, "required ingest metadata is missing", nil)
+			return c.invalidPayload(metadata.RequestID, item.field, "required ingest metadata is missing", nil)
 		}
 	}
-	if request.SensorID == "" && !c.allowMissingSensorID {
-		return c.invalidPayload(request.RequestID, "sensor_id", "sensor identity is required by this source policy", nil)
+	if metadata.SensorID == "" && !c.allowMissingSensorID {
+		return c.invalidPayload(metadata.RequestID, "sensor_id", "sensor identity is required by this source policy", nil)
 	}
+	return nil
+}
+
+func (c *Core) validatePayload(request Request) error {
 	if uint64(len(request.RawPayload)) > c.maxPayloadSize {
 		return newError(
 			codePayloadTooLarge,
@@ -308,6 +346,17 @@ func (c *Core) validateRequest(request Request) error {
 		)
 	}
 	return nil
+}
+
+func requestAdmissionMetadata(request Request) AdmissionMetadata {
+	return AdmissionMetadata{
+		RequestID:      request.RequestID,
+		TenantID:       request.TenantID,
+		SourceID:       request.SourceID,
+		SensorID:       request.SensorID,
+		RemoteIdentity: request.RemoteIdentity,
+		Transport:      request.Transport,
+	}
 }
 
 func (c *Core) invalidPayload(requestID, field, message string, cause error) *Error {

@@ -12,6 +12,12 @@ Step 3 JetStream admission coverage:
 - accepts duplicate `PubAck` as the same transport identity already admitted;
 - verifies a real stored message and both headers against the development JetStream during `make integration`.
 
+Step 4A staged-admission coverage:
+
+- begins common-core authentication/authorization before HTTP body reads;
+- binds authorized admission metadata through payload preparation;
+- rejects post-authorization source-identity substitution before IDs are allocated.
+
 Step 2 JSON/HTTP component coverage:
 
 - preserves the exact JSON request-body bytes across syntax validation;

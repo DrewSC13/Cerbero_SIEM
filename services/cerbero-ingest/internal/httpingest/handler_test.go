@@ -26,11 +26,26 @@ type fixedIDs struct {
 func (f fixedIDs) New() (string, error) { return f.value, nil }
 
 type prepareFake struct {
-	request ingestcore.Request
-	err     error
+	metadata    ingestcore.AdmissionMetadata
+	request     ingestcore.Request
+	beginCalled bool
+	beginErr    error
+	err         error
 }
 
-func (f *prepareFake) Prepare(_ context.Context, request ingestcore.Request) (*ingestcore.Result, error) {
+func (f *prepareFake) Begin(
+	_ context.Context,
+	metadata ingestcore.AdmissionMetadata,
+) (ingestcore.Admission, error) {
+	f.beginCalled = true
+	f.metadata = metadata
+	if f.beginErr != nil {
+		return nil, f.beginErr
+	}
+	return f, nil
+}
+
+func (f *prepareFake) Prepare(request ingestcore.Request) (*ingestcore.Result, error) {
 	f.request = request
 	if f.err != nil {
 		return nil, f.err
@@ -41,6 +56,22 @@ func (f *prepareFake) Prepare(_ context.Context, request ingestcore.Request) (*i
 		Envelope:  &contractsv1.CerberoEnvelope{MessageId: testMessageID},
 	}, nil
 }
+
+type orderedBody struct {
+	t      *testing.T
+	began  *bool
+	reader *strings.Reader
+}
+
+func (b *orderedBody) Read(p []byte) (int, error) {
+	b.t.Helper()
+	if !*b.began {
+		b.t.Fatal("HTTP body was read before ingest admission began")
+	}
+	return b.reader.Read(p)
+}
+
+func (b *orderedBody) Close() error { return nil }
 
 type acceptFake struct {
 	called bool
@@ -120,6 +151,31 @@ func TestHandlerPreservesExactJSONBytesAndRequiresDurableAcceptance(t *testing.T
 	}
 	if payload["event_id"] != testEventID || payload["message_id"] != testMessageID {
 		t.Fatalf("unexpected success payload: %#v", payload)
+	}
+}
+
+func TestHandlerBeginsAdmissionBeforeReadingBody(t *testing.T) {
+	preparer := &prepareFake{}
+	handler := newTestHandler(t, preparer, &acceptFake{})
+	request := httptest.NewRequest(http.MethodPost, "/v1/events", nil)
+	request.Header.Set("Content-Type", "application/json")
+	request.Body = &orderedBody{
+		t:      t,
+		began:  &preparer.beginCalled,
+		reader: strings.NewReader(`{"ok":true}`),
+	}
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusAccepted, response.Body.String())
+	}
+	if preparer.metadata.RequestID != testRequestID {
+		t.Fatalf("admission request_id = %q, want %q", preparer.metadata.RequestID, testRequestID)
+	}
+	if preparer.metadata.Transport != "json-http" {
+		t.Fatalf("admission transport = %q, want json-http", preparer.metadata.Transport)
 	}
 }
 
@@ -217,7 +273,7 @@ func TestHandlerMapsDurableFailureToRetryable503(t *testing.T) {
 
 func TestHandlerMapsCoreAuthorizationFailureTo403(t *testing.T) {
 	preparer := &prepareFake{
-		err: &ingestcore.Error{Contract: &contractsv1.CerberoError{
+		beginErr: &ingestcore.Error{Contract: &contractsv1.CerberoError{
 			Code:      "CER-AUTH-FORBIDDEN",
 			Category:  contractsv1.ErrorCategory_AUTHORIZATION,
 			Message:   "source is not authorized to ingest events",

@@ -48,6 +48,8 @@ contract runtime tests
   -> duplicate message identity, replay, and parser-failure preservation
 
 Milestone 2 JSON/HTTP component tests (through the Go gates)
+  -> authentication/authorization begins before HTTP body receipt
+  -> authorized source metadata cannot be substituted before RawEvent construction
   -> exact-byte JSON body preservation
   -> request-id generation/propagation
   -> HTTP method/media-type/body-size validation

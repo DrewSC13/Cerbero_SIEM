@@ -20,9 +20,9 @@ const (
 	jsonMediaType   = "application/json"
 )
 
-// Preparer is the common ingest-core boundary used by the HTTP adapter.
+// Preparer starts the common ingest admission flow before the HTTP body is received.
 type Preparer interface {
-	Prepare(context.Context, ingestcore.Request) (*ingestcore.Result, error)
+	Begin(context.Context, ingestcore.AdmissionMetadata) (ingestcore.Admission, error)
 }
 
 // DurableAcceptor confirms that a prepared envelope has been admitted durably.
@@ -31,7 +31,7 @@ type DurableAcceptor interface {
 	Accept(context.Context, *ingestcore.Result) error
 }
 
-// MetadataResolver derives authenticated transport metadata without making HTTP parsing own identity policy.
+// MetadataResolver derives transport metadata and presented identity material without owning authentication policy.
 type MetadataResolver interface {
 	Resolve(*http.Request) (ingestcore.AdmissionMetadata, error)
 }
@@ -112,6 +112,26 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		return
 	}
 
+	metadata, err := h.metadata.Resolve(request)
+	if err != nil {
+		h.writeError(response, http.StatusUnauthorized, newWireError(
+			"CER-AUTH-UNAUTHENTICATED",
+			contractsv1.ErrorCategory_AUTHENTICATION,
+			"source authentication metadata could not be resolved",
+			false,
+			requestID,
+		))
+		return
+	}
+	metadata.RequestID = requestID
+	metadata.Transport = "json-http"
+
+	admission, err := h.preparer.Begin(request.Context(), metadata)
+	if err != nil {
+		h.writePrepareError(response, requestID, err)
+		return
+	}
+
 	rawPayload, err := readBounded(request.Body, h.maxPayloadSize)
 	if err != nil {
 		var tooLarge payloadTooLargeError
@@ -139,25 +159,13 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	metadata, err := h.metadata.Resolve(request)
-	if err != nil {
-		h.writeError(response, http.StatusUnauthorized, newWireError(
-			"CER-AUTH-UNAUTHENTICATED",
-			contractsv1.ErrorCategory_AUTHENTICATION,
-			"source authentication metadata could not be resolved",
-			false,
-			requestID,
-		))
-		return
-	}
-
-	result, err := h.preparer.Prepare(request.Context(), ingestcore.Request{
-		RequestID:      requestID,
+	result, err := admission.Prepare(ingestcore.Request{
+		RequestID:      metadata.RequestID,
 		TenantID:       metadata.TenantID,
 		SourceID:       metadata.SourceID,
 		SensorID:       metadata.SensorID,
 		RemoteIdentity: metadata.RemoteIdentity,
-		Transport:      "json-http",
+		Transport:      metadata.Transport,
 		ContentType:    jsonMediaType,
 		Encoding:       "utf-8",
 		RawPayload:     rawPayload,
