@@ -128,7 +128,15 @@ Success requires a non-nil JetStream PubAck from the locked `CERBERO_RAW` stream
 
 The adapter validates the locked subject, UUIDv7 publication identity, optional UUIDv7 request correlation, and non-empty payload before transport. It does not ACK `raw.received`; ACK/NAK/DLQ behavior remains the responsibility of the future durable-consumer runtime. The integration test uses the existing least-privilege `NATS_RAW_PRESERVER_*` identity and verifies the real `CERBERO_RAW` boundary.
 
-## Still open after M3 Step 7
+## M3 Step 8: real PostgreSQL adapter integration
+
+The PostgreSQL metadata adapter is now exercised against the real development PostgreSQL boundary using `pgx/v5` through `database/sql`. This dependency is introduced for integration coverage only; `PostgresMetadataStore` still receives an already-open `*sql.DB`, so production runtime connection ownership/credential delivery is not selected by this increment.
+
+The integration test creates a temporary login role that inherits the migration-owned `cerbero_raw_preserver` NOLOGIN role, then verifies the adapter using the same least-privilege grants intended for the service. It covers atomic preservation commit, complete `uint64` offset/length round-trip through `numeric(20,0)`, idempotent same-key commit, repeated `MarkPublished`, conflict rollback without orphan locator state, and the expected failure of an application-role `DELETE`. Test records and the temporary login role are removed using the development administrator after the test.
+
+This closes the SQL-semantic gap between the package-local transaction fakes and PostgreSQL 18 while preserving the architecture rule that raw bytes never enter PostgreSQL and that Raw Store/PostgreSQL/NATS do not form one distributed ACID transaction.
+
+## Still open after M3 Step 8
 
 - production object-storage provider;
 - exact raw segment size/rotation;
