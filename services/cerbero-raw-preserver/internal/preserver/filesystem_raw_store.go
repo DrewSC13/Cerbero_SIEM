@@ -92,6 +92,9 @@ func (s *FilesystemRawStore) EnsureDurable(ctx context.Context, evidence RawEvid
 	if err := ensureDurableRawFile(ctx, segmentDir, finalPath, evidence); err != nil {
 		return RawObject{}, err
 	}
+	if err := ensureClosedFilesystemSegment(ctx, segmentDir, evidence); err != nil {
+		return RawObject{}, fmt.Errorf("close raw segment: %w", err)
+	}
 
 	uriPath := append(append([]string(nil), parts...), filesystemRawDataFilename)
 	storageURI := (&url.URL{Scheme: "raw", Path: "/" + path.Join(uriPath...)}).String()

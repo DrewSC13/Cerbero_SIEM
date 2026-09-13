@@ -190,8 +190,9 @@ func TestFilesystemRawStoreConcurrentEnsureDurableConvergesOnSingleObject(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 1 || entries[0].Name() != filesystemRawDataFilename {
-		t.Fatalf("segment entries = %#v, want only %q", entryNames(entries), filesystemRawDataFilename)
+	wantEntries := []string{filesystemManifestFilename, filesystemManifestHashFilename, filesystemRawDataFilename}
+	if got := entryNames(entries); !reflect.DeepEqual(got, wantEntries) {
+		t.Fatalf("segment entries = %#v, want %#v", got, wantEntries)
 	}
 }
 
