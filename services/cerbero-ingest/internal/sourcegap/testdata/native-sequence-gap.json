@@ -1,0 +1,8 @@
+{
+  "tenant_id": "tenant-gap-fixture",
+  "source_id": "source-gap-fixture",
+  "sensor_id": "sensor-gap-fixture",
+  "sequences": [41, 42, 45],
+  "expected_sequence": 43,
+  "observed_sequence": 45
+}

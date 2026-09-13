@@ -47,14 +47,68 @@ contract runtime tests
   -> exact raw SHA-256 / byte-count validation
   -> duplicate message identity, replay, and parser-failure preservation
 
+Milestone 2 JSON/HTTP component tests (through the Go gates)
+  -> authentication/authorization begins before HTTP body receipt
+  -> authorized source metadata cannot be substituted before RawEvent construction
+  -> exact-byte JSON body preservation
+  -> request-id generation/propagation
+  -> HTTP method/media-type/body-size validation
+  -> 4xx source error mapping
+  -> durable-admission required before 202
+  -> 503 on durable-admission failure
+
+Milestone 2 JetStream admission tests
+  -> envelope Protobuf publication on cerbero.v1.raw.received
+  -> message_id as Nats-Msg-Id transport deduplication identity
+  -> ADR-0007 Cerbero-Request-Id propagation
+  -> request metadata validation before publish
+  -> publish error / missing PubAck rejection
+  -> duplicate PubAck accepted as durable success
+  -> live development JetStream storage verification
+
+Milestone 2 runtime-composition tests
+  -> DEVELOPMENT profile is explicit and loopback-only
+  -> PRODUCTION fails closed until PKI source authentication exists
+  -> every frontend limit is explicit configuration
+  -> event rate limiting occurs after authn/authz and before body receipt
+  -> /readyz requires the NATS connection and CERBERO_RAW stream
+  -> live JSON/HTTP request returns 202 only after stored JetStream admission
+  -> stored RawEvent retains the exact HTTP request bytes
+
+Milestone 2 closure tests
+  -> backend-neutral ingest received/accepted/rejected/byte counters and latency observations
+  -> stable failure counters for payload/authn/authz/rate/publish failures without free-cardinality labels
+  -> native sequence gap fixture with independent per-source state and no invented sequence
+  -> NATS outage makes /readyz return 503
+  -> NATS outage returns retryable CER-BUS-PUBLISH-FAILED and never 202
+  -> outage increments rejected/publish-failure metrics without accepted events
+
+Milestone 2 source-boundary tests
+  -> syslog admission uses the common staged IngestCore boundary
+  -> syslog framed evidence bytes and declared metadata pass through unchanged
+  -> syslog reports success only after the durable acceptor succeeds
+  -> journald accepts original field-set bytes or a preexisting canonical raw representation
+  -> journald rejects ambiguous/missing evidence forms and non-journald transport metadata
+
+Milestone 2 ingest-core unit tests (through the Go gates)
+  -> UUIDv7 generation and secure-random failure behavior
+  -> exact-byte RawEvent construction and immutable input-copy semantics
+  -> event_time / ingest_time separation
+  -> payload limits and source-identity policy
+  -> authentication + events.ingest authorization hooks
+  -> stable CerberoError mapping and envelope payload round-trip
+
 integration
   -> Compose config
   -> PostgreSQL
   -> ClickHouse
   -> NATS JetStream + v1 stream topology
+  -> M2 synchronous RawEvent envelope durable publication + stored header verification
+  -> M2 composed DEVELOPMENT JSON/HTTP -> IngestCore -> JetStream runtime
+  -> M2 NATS-outage non-acceptance/readiness contract
 ```
 
-The Go gates discover every `go.mod` recursively below `services/`, including the shared contracts module. The build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
+The Go gates discover every `go.mod` recursively below `services/`, including the shared contracts module. Repository-local Go modules are linked by the root `go.work`; they are not represented as synthetic `v0.0.0` requirements in sibling `go.mod` files. External dependencies remain pinned in the owning module. The build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
 
 Infrastructure health checks use bounded retries because PostgreSQL and ClickHouse can transiently reject requests while their fresh development volumes are initialized. PostgreSQL must also be running its final PID 1 `postgres` process before `pg_isready` can satisfy the gate; this excludes the temporary server started by the image entrypoint during `initdb`. NATS readiness is validated with `stream ls`, which simultaneously verifies connectivity, authentication, and JetStream availability without relying on version-specific `server ping` flags.
 
@@ -65,7 +119,7 @@ Contract tests must also satisfy the active Clippy style lints; concrete default
 
 ## E2E honesty
 
-Milestones 0–1 do not claim an analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
+Milestone 2 proves RawEvent construction, source-boundary behavior, durable JetStream admission, readiness/non-acceptance during NATS outage, and ingest-side observability semantics. It still does not claim Raw Preservation or an analytical E2E pipeline. `make e2e` remains an explicit honesty gate documenting that boundary. The first RawEvent preservation E2E belongs to Milestone 3; the full analytical E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
 
 ## Future hierarchy
 

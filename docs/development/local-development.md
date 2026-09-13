@@ -58,6 +58,28 @@ make dev-reset
 `dev-reset` deletes only Docker development volumes and generated files under `var/raw/`; it is not a production operation.
 
 
+## DEVELOPMENT JSON/HTTP ingest runtime
+
+The runtime added in M2 is intentionally development-only until the production PKI source-authentication profile is implemented. `.env.example` enables an explicit insecure DEVELOPMENT profile bound to loopback. These values are not production defaults.
+
+For an existing `.env` created before M2 Step 4B, review the new `CERBERO_INGEST_*`, `CERBERO_SECURITY_PROFILE`, and `CERBERO_NATS_URL` entries in `.env.example` and copy the development values intentionally.
+
+With NATS running and bootstrapped:
+
+```bash
+make dev-ingest
+```
+
+The default DEVELOPMENT endpoints from `.env.example` are:
+
+```text
+POST /ingest/v1/events
+GET  /livez
+GET  /readyz
+```
+
+The ingest path is a DEVELOPMENT runtime path, not a frozen production API endpoint. Plain HTTP and static source identity are rejected outside the explicit insecure DEVELOPMENT profile.
+
 ## Contract tooling
 
 Milestone 1 requires Buf `1.72.0` for schema validation and generation. Install the pinned CLI without changing the system Go installation:
