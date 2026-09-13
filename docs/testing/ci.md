@@ -66,6 +66,15 @@ Milestone 2 JetStream admission tests
   -> duplicate PubAck accepted as durable success
   -> live development JetStream storage verification
 
+Milestone 2 runtime-composition tests
+  -> DEVELOPMENT profile is explicit and loopback-only
+  -> PRODUCTION fails closed until PKI source authentication exists
+  -> every frontend limit is explicit configuration
+  -> event rate limiting occurs after authn/authz and before body receipt
+  -> /readyz requires the NATS connection and CERBERO_RAW stream
+  -> live JSON/HTTP request returns 202 only after stored JetStream admission
+  -> stored RawEvent retains the exact HTTP request bytes
+
 Milestone 2 ingest-core unit tests (through the Go gates)
   -> UUIDv7 generation and secure-random failure behavior
   -> exact-byte RawEvent construction and immutable input-copy semantics
@@ -80,6 +89,7 @@ integration
   -> ClickHouse
   -> NATS JetStream + v1 stream topology
   -> M2 synchronous RawEvent envelope durable publication + stored header verification
+  -> M2 composed DEVELOPMENT JSON/HTTP -> IngestCore -> JetStream runtime
 ```
 
 The Go gates discover every `go.mod` recursively below `services/`, including the shared contracts module. Repository-local Go modules are linked by the root `go.work`; they are not represented as synthetic `v0.0.0` requirements in sibling `go.mod` files. External dependencies remain pinned in the owning module. The build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.

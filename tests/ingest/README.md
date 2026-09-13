@@ -12,6 +12,15 @@ Step 3 JetStream admission coverage:
 - accepts duplicate `PubAck` as the same transport identity already admitted;
 - verifies a real stored message and both headers against the development JetStream during `make integration`.
 
+Step 4B runtime-composition coverage:
+
+- rejects production startup while production PKI source authentication remains unimplemented;
+- requires explicit insecure DEVELOPMENT mode and loopback binding;
+- requires all locked frontend limit categories as runtime configuration;
+- rate-limits admitted events after authn/authz and before payload receipt;
+- exposes liveness/readiness with readiness dependent on NATS + `CERBERO_RAW`;
+- integration-tests JSON/HTTP through the composed runtime to stored JetStream `RawEvent` exact bytes.
+
 Step 4A staged-admission coverage:
 
 - begins common-core authentication/authorization before HTTP body reads;

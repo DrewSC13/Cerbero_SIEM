@@ -12,6 +12,14 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
+type allowAllLimiter struct {
+	allow bool
+}
+
+func (l *allowAllLimiter) Allow(context.Context, Principal, AdmissionMetadata) bool {
+	return l.allow
+}
+
 type fixedClock struct {
 	value time.Time
 }
@@ -71,6 +79,7 @@ func testCore(t *testing.T, maxPayload uint64, allowMissingSensor bool) (*Core, 
 	}}
 	authenticator := &fixedAuthenticator{principal: Principal{ID: "sensor-cert:lab-linux-01"}}
 	authorizer := &fixedAuthorizer{}
+	limiter := &allowAllLimiter{allow: true}
 	core, err := New(Config{
 		MaxPayloadSize:       maxPayload,
 		AllowMissingSensorID: allowMissingSensor,
@@ -83,6 +92,7 @@ func testCore(t *testing.T, maxPayload uint64, allowMissingSensor bool) (*Core, 
 		IDs:           ids,
 		Authenticator: authenticator,
 		Authorizer:    authorizer,
+		Limiter:       limiter,
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -312,6 +322,20 @@ func TestPrepareEnforcesSensorPolicyWithoutInventingIdentity(t *testing.T) {
 	}
 }
 
+func TestBeginMapsAdmissionRateLimitBeforePayloadPreparation(t *testing.T) {
+	core, ids, authenticator, authorizer := testCore(t, 1024, false)
+	core.limiter = &allowAllLimiter{allow: false}
+
+	_, err := core.Begin(context.Background(), requestAdmissionMetadata(validRequest()))
+	assertContractError(t, err, codeRateLimited, contractsv1.ErrorCategory_RATE_LIMIT, true)
+	if ids.calls != 0 {
+		t.Fatalf("ID calls = %d, want 0 after rate-limit rejection", ids.calls)
+	}
+	if authenticator.calls != 1 || authorizer.calls != 1 {
+		t.Fatalf("rate limit must run after authn/authz: authn=%d authz=%d", authenticator.calls, authorizer.calls)
+	}
+}
+
 func TestPrepareMapsAuthenticationAndAuthorizationFailures(t *testing.T) {
 	request := validRequest()
 
@@ -335,6 +359,7 @@ func TestPrepareMapsAuthenticationAndAuthorizationFailures(t *testing.T) {
 func TestNewRequiresExplicitPolicyAndProvenanceConfiguration(t *testing.T) {
 	authenticator := &fixedAuthenticator{principal: Principal{ID: "principal"}}
 	authorizer := &fixedAuthorizer{}
+	limiter := &allowAllLimiter{allow: true}
 	base := Config{
 		MaxPayloadSize:   1024,
 		ComponentVersion: "0.1.0",
@@ -342,6 +367,7 @@ func TestNewRequiresExplicitPolicyAndProvenanceConfiguration(t *testing.T) {
 		InstanceID:       "instance-1",
 		Authenticator:    authenticator,
 		Authorizer:       authorizer,
+		Limiter:          limiter,
 	}
 
 	tests := []struct {
@@ -354,6 +380,7 @@ func TestNewRequiresExplicitPolicyAndProvenanceConfiguration(t *testing.T) {
 		{name: "instance ID", mutate: func(config *Config) { config.InstanceID = "" }},
 		{name: "authenticator", mutate: func(config *Config) { config.Authenticator = nil }},
 		{name: "authorizer", mutate: func(config *Config) { config.Authorizer = nil }},
+		{name: "limiter", mutate: func(config *Config) { config.Limiter = nil }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

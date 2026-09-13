@@ -26,6 +26,7 @@ export CERBERO_NATS_URL="nats://127.0.0.1:${NATS_PORT}"
 (
   cd services/cerbero-ingest
   go test -tags=integration ./internal/eventbus -run '^TestJetStreamAcceptorIntegration$' -count=1
+  go test -tags=integration ./internal/ingestapp -run '^TestDevelopmentRuntimeHTTPToJetStream$' -count=1
 )
 
-echo "Milestone 2 durable-ingest integration: PASS"
+echo "Milestone 2 JSON/HTTP durable-ingest runtime integration: PASS"

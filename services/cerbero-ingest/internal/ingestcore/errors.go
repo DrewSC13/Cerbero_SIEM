@@ -9,6 +9,7 @@ import (
 const (
 	codeInvalidPayload     = "CER-ING-INVALID-PAYLOAD"
 	codePayloadTooLarge    = "CER-ING-PAYLOAD-TOO-LARGE"
+	codeRateLimited        = "CER-ING-RATE-LIMITED"
 	codeUnauthenticated    = "CER-AUTH-UNAUTHENTICATED"
 	codeForbidden          = "CER-AUTH-FORBIDDEN"
 	codeSystemInternal     = "CER-SYSTEM-INTERNAL"

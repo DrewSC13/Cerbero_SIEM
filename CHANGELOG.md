@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 2 DEVELOPMENT runtime composition for JSON/HTTP → staged IngestCore → JetStream, with fail-closed production startup, loopback-only insecure development binding, explicit frontend limits, live/ready health endpoints, graceful shutdown, and full HTTP-to-JetStream integration coverage.
 - Milestone 2 synchronous JetStream `DurableAcceptor` for `cerbero.v1.raw.received`, with Protobuf envelope publication, `Nats-Msg-Id` deduplication identity, ADR-0007 request metadata, PubAck enforcement, unit coverage, and live JetStream integration coverage.
 - ADR-0007 defining `Cerbero-Request-Id` as the v1 NATS trace-metadata carrier for request correlation without altering the locked `CerberoEnvelope` schema.
 - Milestone 2 JSON/HTTP ingest adapter with exact-byte JSON preservation, UUIDv7 request correlation, stable HTTP error mapping, and an injected durable-admission boundary required before any `2xx` response.
@@ -34,6 +35,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Fixed
 
+- Enforce configured ingest event-admission rate limits after authentication/authorization and before HTTP payload receipt.
 - Stage ingest authentication/authorization before HTTP body receipt and bind authorized admission metadata so source identity cannot change between authorization and RawEvent construction.
 - Avoid copying generated Protobuf messages by value in JSON/HTTP adapter tests so Go `vet` copylock analysis remains clean.
 - Resolve the shared contracts module through the root Go workspace instead of declaring an invalid versioned repository-local module requirement in `cerbero-ingest`.

@@ -48,6 +48,11 @@ type Authorizer interface {
 	Authorize(context.Context, Principal, string, AdmissionMetadata) error
 }
 
+// AdmissionLimiter enforces event-admission rate policy after authn/authz and before payload receipt.
+type AdmissionLimiter interface {
+	Allow(context.Context, Principal, AdmissionMetadata) bool
+}
+
 // Config contains policy and provenance values required by IngestCore.
 type Config struct {
 	MaxPayloadSize       uint64
@@ -59,6 +64,7 @@ type Config struct {
 	IDs                  IDGenerator
 	Authenticator        Authenticator
 	Authorizer           Authorizer
+	Limiter              AdmissionLimiter
 }
 
 // Request is the frontend-neutral input accepted by IngestCore after transport framing.
@@ -105,6 +111,7 @@ type Core struct {
 	ids                  IDGenerator
 	authenticator        Authenticator
 	authorizer           Authorizer
+	limiter              AdmissionLimiter
 }
 
 // New validates ingest-core configuration and returns a reusable Core.
@@ -127,6 +134,9 @@ func New(config Config) (*Core, error) {
 	if config.Authorizer == nil {
 		return nil, errors.New("authorizer hook is required")
 	}
+	if config.Limiter == nil {
+		return nil, errors.New("admission limiter is required")
+	}
 	if config.Clock == nil {
 		config.Clock = systemClock{}
 	}
@@ -145,6 +155,7 @@ func New(config Config) (*Core, error) {
 		ids:                  config.IDs,
 		authenticator:        config.Authenticator,
 		authorizer:           config.Authorizer,
+		limiter:              config.Limiter,
 	}, nil
 }
 
@@ -179,6 +190,17 @@ func (c *Core) Begin(ctx context.Context, metadata AdmissionMetadata) (Admission
 	}
 	if err := c.validateAdmissionMetadata(metadata); err != nil {
 		return nil, err
+	}
+	if !c.limiter.Allow(ctx, principal, metadata) {
+		return nil, newError(
+			codeRateLimited,
+			contractsv1.ErrorCategory_RATE_LIMIT,
+			"ingest admission rate limit exceeded",
+			true,
+			metadata.RequestID,
+			nil,
+			nil,
+		)
 	}
 
 	return &authorizedAdmission{

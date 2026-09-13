@@ -109,13 +109,31 @@ Before the JSON/HTTP adapter is wired into a listening process, the common-core 
 
 The existing one-shot `Core.Prepare` method remains a compatibility wrapper for non-streaming callers that already hold the complete payload. Production request/response frontends must use the staged `Begin` flow.
 
-## Deliberately not implemented after Step 3
+## M2 Step 4B: DEVELOPMENT runtime composition
+
+`cerbero-ingest` now composes the JSON/HTTP adapter, staged `IngestCore`, and synchronous JetStream durable acceptor into an executable DEVELOPMENT runtime.
+
+The security boundary is intentionally fail-closed:
+
+- `CERBERO_SECURITY_PROFILE=DEVELOPMENT` is currently the only runnable profile;
+- plain HTTP additionally requires `CERBERO_INGEST_INSECURE_DEVELOPMENT=1`;
+- insecure DEVELOPMENT binding must use an explicit loopback IP;
+- the development source identity is static configuration and is visibly warned at startup;
+- `PRODUCTION` refuses startup until a production source authenticator conforming to the PKI/security baseline is implemented;
+- no API key, bearer-token scheme, certificate subject profile, or other production credential format is invented by M2.
+
+Every frontend limit required by the ingest baseline is explicit runtime configuration: `max_payload_size`, `max_connection_rate`, `max_events_per_second`, `read_timeout`, `idle_timeout`, and `concurrent_connections`. Values in `.env.example` are DEVELOPMENT examples only and do not freeze global production policy.
+
+The event-admission rate limiter runs inside `IngestCore.Begin` after authentication/authorization and before body receipt. Socket connection-rate and concurrent-connection controls remain transport-frontier controls. `/livez` reports process liveness; `/readyz` requires the NATS connection and the `CERBERO_RAW` stream to be available. The development `cerbero_ingest` NATS identity receives only the additional `$JS.API.STREAM.INFO.CERBERO_RAW` metadata-query permission needed for that check. The configured JSON ingest path is DEVELOPMENT-only and is not frozen as the production external API contract.
+
+`make integration` now performs a real JSON/HTTP request through the composed runtime, verifies `202 Accepted`, reads the resulting `cerbero.v1.raw.received` message from JetStream, validates request/message correlation, and verifies that the `RawEvent` contains the exact HTTP bytes.
+
+## Deliberately not implemented after Step 4B
 
 Payload preparation is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside this commit:
 
-- connection/rate/timeouts and per-frontend limit configuration;
 - syslog adapter skeleton and journald collector contract;
-- NATS outage behavior and readiness degradation;
+- production TLS/mTLS source authentication, certificate/revocation integration, and production security-profile wiring;
 - raw-preserver, Raw Store persistence, `raw.persisted`, ACK/retry/DLQ behavior (Milestone 3).
 
 This boundary prevents M2 unit code from claiming the stronger acceptance guarantee that only the durable event bus can provide.
