@@ -59,9 +59,15 @@ The `PublicationBuilder` payload remains opaque in Step 2. This prevents impleme
 
 ## M3 Step 3A: RawEventPersisted contract decision
 
-ADR-0009 closes the missing v1 payload semantics for `cerbero.v1.raw.persisted`. The governed payload is a metadata/locator projection of the preserved RawEvent plus `persisted_at`; it never retransmits `raw_payload`. Step 3B will add the canonical Protobuf source, generated Rust/Go bindings, semantic checks, and runtime validation before the Step 2 publication builder is made concrete.
+ADR-0009 closes the missing v1 payload semantics for `cerbero.v1.raw.persisted`. The governed payload is a metadata/locator projection of the preserved RawEvent plus `persisted_at`; it never retransmits `raw_payload`.
 
-## Still open after M3 Step 2
+## M3 Step 3B: executable RawEventPersisted contract
+
+The canonical source now defines `RawEventPersisted` as `cerbero.raw_event_persisted.v1`, with generated Rust/Go bindings and runtime validation. A shared deterministic wire fixture proves cross-language serialization compatibility. Validation requires UUIDv7 event identity, required tenant/source/locator/pipeline metadata, valid timestamps, lowercase SHA-256 metadata, and `length == raw_size`; the semantic source gate also rejects any future `raw_payload` field in this message.
+
+The Step 2 `PublicationBuilder` remains abstract until the next increment wires this governed payload into the outbox builder and JetStream publisher.
+
+## Still open after M3 Step 3B
 
 - concrete object-storage provider;
 - exact raw segment size/rotation;

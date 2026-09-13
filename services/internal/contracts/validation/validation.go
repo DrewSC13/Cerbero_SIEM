@@ -68,7 +68,7 @@ func SHA256LowerHex(data []byte) string {
 	return hex.EncodeToString(digest[:])
 }
 
-func validateSHA256(algorithmField, hashField, algorithm, hash string, data []byte) error {
+func validateSHA256Metadata(algorithmField, hashField, algorithm, hash string) error {
 	if algorithm != "sha256" {
 		return violation(algorithmField, "must equal sha256")
 	}
@@ -80,6 +80,13 @@ func validateSHA256(algorithmField, hashField, algorithm, hash string, data []by
 		if !((value >= '0' && value <= '9') || (value >= 'a' && value <= 'f')) {
 			return violation(hashField, "must be a 64-character lowercase hexadecimal SHA-256 digest")
 		}
+	}
+	return nil
+}
+
+func validateSHA256(algorithmField, hashField, algorithm, hash string, data []byte) error {
+	if err := validateSHA256Metadata(algorithmField, hashField, algorithm, hash); err != nil {
+		return err
 	}
 	if SHA256LowerHex(data) != hash {
 		return violation(hashField, "does not match the exact raw payload bytes")
@@ -149,6 +156,54 @@ func RawEvent(event *contractsv1.RawEvent) error {
 		event.GetRawHash(),
 		event.GetRawPayload(),
 	)
+}
+
+// RawEventPersisted validates the durable raw locator/metadata handoff used by raw.persisted.
+func RawEventPersisted(event *contractsv1.RawEventPersisted) error {
+	if event == nil {
+		return violation("raw_event_persisted", "is required")
+	}
+	if err := UUIDv7("event_id", event.GetEventId()); err != nil {
+		return err
+	}
+	required := []struct {
+		field string
+		value string
+	}{
+		{field: "tenant_id", value: event.GetTenantId()},
+		{field: "source_id", value: event.GetSourceId()},
+		{field: "pipeline_version", value: event.GetPipelineVersion()},
+		{field: "storage_uri", value: event.GetStorageUri()},
+		{field: "segment_id", value: event.GetSegmentId()},
+	}
+	for _, item := range required {
+		if item.value == "" {
+			return violation(item.field, "is required")
+		}
+	}
+	if event.GetEventTime() != nil {
+		if err := Timestamp("event_time", event.GetEventTime()); err != nil {
+			return err
+		}
+	}
+	if err := Timestamp("ingest_time", event.GetIngestTime()); err != nil {
+		return err
+	}
+	if err := Timestamp("persisted_at", event.GetPersistedAt()); err != nil {
+		return err
+	}
+	if err := validateSHA256Metadata(
+		"raw_hash_algorithm",
+		"raw_hash",
+		event.GetRawHashAlgorithm(),
+		event.GetRawHash(),
+	); err != nil {
+		return err
+	}
+	if event.GetLength() != event.GetRawSize() {
+		return violation("length", "must equal raw_size")
+	}
+	return nil
 }
 
 // NormalizedEvent validates M1 identity and timestamp invariants of a normalized derivation.

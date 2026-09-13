@@ -47,6 +47,30 @@ func fixtureRawEvent() *contractsv1.RawEvent {
 	}
 }
 
+func fixtureRawEventPersisted() *contractsv1.RawEventPersisted {
+	sequence := uint64(42)
+	return &contractsv1.RawEventPersisted{
+		EventId:          eventID,
+		TenantId:         "tenant-a",
+		SourceId:         "source-a",
+		IngestTime:       fixtureTimestamp(),
+		ContentType:      "text/plain",
+		Encoding:         "utf-8",
+		RawSize:          3,
+		RawHashAlgorithm: "sha256",
+		RawHash:          SHA256LowerHex([]byte("abc")),
+		Transport:        "test",
+		RemoteIdentity:   "fixture",
+		SequenceNumber:   &sequence,
+		IntegrityStatus:  contractsv1.IntegrityStatus(1),
+		PipelineVersion:  "v1",
+		StorageUri:       "raw://tenant-a/segment-a",
+		SegmentId:        "segment-a",
+		Length:           3,
+		PersistedAt:      &timestamppb.Timestamp{Seconds: 2},
+	}
+}
+
 func sharedFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	_, source, _, ok := runtime.Caller(0)
@@ -84,6 +108,50 @@ func TestSharedWireFixtureRoundTrips(t *testing.T) {
 	}
 	if string(encoded) != string(fixture) {
 		t.Fatal("deterministic Go encoding differs from the shared wire fixture")
+	}
+}
+
+func TestRawEventPersistedSharedFixtureRoundTrips(t *testing.T) {
+	fixture := sharedFixture(t, "raw_event_persisted_minimal.hex")
+	event := new(contractsv1.RawEventPersisted)
+	if err := proto.Unmarshal(fixture, event); err != nil {
+		t.Fatalf("unmarshal persisted fixture: %v", err)
+	}
+	if err := RawEventPersisted(event); err != nil {
+		t.Fatalf("validate persisted fixture: %v", err)
+	}
+	encoded, err := proto.MarshalOptions{Deterministic: true}.Marshal(event)
+	if err != nil {
+		t.Fatalf("marshal persisted fixture: %v", err)
+	}
+	if string(encoded) != string(fixture) {
+		t.Fatal("deterministic Go encoding differs from the persisted shared wire fixture")
+	}
+}
+
+func TestRawEventPersistedRejectsInvalidLocatorAndHashMetadata(t *testing.T) {
+	event := fixtureRawEventPersisted()
+	event.Length++
+	if err := RawEventPersisted(event); err == nil {
+		t.Fatal("expected raw locator length mismatch")
+	} else if got := err.(Violation).Field; got != "length" {
+		t.Fatalf("unexpected violation field %q", got)
+	}
+
+	event = fixtureRawEventPersisted()
+	event.RawHash = strings.ToUpper(event.RawHash)
+	if err := RawEventPersisted(event); err == nil {
+		t.Fatal("expected uppercase SHA-256 rejection")
+	} else if got := err.(Violation).Field; got != "raw_hash" {
+		t.Fatalf("unexpected violation field %q", got)
+	}
+
+	event = fixtureRawEventPersisted()
+	event.StorageUri = ""
+	if err := RawEventPersisted(event); err == nil {
+		t.Fatal("expected missing storage URI rejection")
+	} else if got := err.(Violation).Field; got != "storage_uri" {
+		t.Fatalf("unexpected violation field %q", got)
 	}
 }
 

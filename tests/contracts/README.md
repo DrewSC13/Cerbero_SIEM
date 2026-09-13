@@ -14,14 +14,15 @@ The source gate (`make contracts`) verifies:
 Rust and Go runtime tests cover:
 
 - Protobuf serialization/deserialization;
-- shared valid and invalid cross-language RawEvent wire fixtures;
+- shared valid and invalid cross-language RawEvent wire fixtures plus the `RawEventPersisted` locator fixture;
 - UUIDv7 validation for CERBERO-owned IDs;
 - Protobuf timestamp validity;
 - exact raw SHA-256 and raw byte-count consistency;
 - duplicate delivery retaining the same `message_id`;
 - explicit REPLAY execution mode surviving serialization;
 - parser failure represented as `Transformation FAILED` with error provenance while RawEvent remains unchanged;
-- invalid raw metadata and raw hash mismatch rejection.
+- invalid raw metadata and raw hash mismatch rejection;
+- `RawEventPersisted` locator/hash/length validation without retransmitted raw bytes.
 
 The valid fixture round-trips identically in Rust and Go. The invalid fixture preserves the same raw payload bytes and hash but declares an incorrect `raw_size`; both language validators must reject it.
 

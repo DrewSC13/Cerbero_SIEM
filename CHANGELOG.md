@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Canonical `RawEventPersisted` v1 Protobuf source, generated Rust/Go bindings, shared wire fixture, semantic contract checks, and runtime validators for the durable Raw Store handoff.
 - ADR-0009 closing the missing v1 `RawEventPersisted` payload contract and its raw-locator/normalizer handoff semantics without retransmitting authoritative raw bytes.
 - Milestone 3 raw-preserver Go service skeleton and preservation core with exact-byte Raw Store boundary, transport-idempotency state, stable outbox publication recovery, and explicit ACK/retry/isolate dispositions.
 - ADR-0008 defining the standalone Go raw-preserver boundary, transport idempotency, PostgreSQL locator/processed-message ownership, and transactional-outbox publication of `raw.persisted`.

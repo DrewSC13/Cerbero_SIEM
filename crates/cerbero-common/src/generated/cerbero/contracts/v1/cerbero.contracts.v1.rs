@@ -317,6 +317,52 @@ pub struct RawEvent {
     #[prost(string, tag="17")]
     pub pipeline_version: ::prost::alloc::string::String,
 }
+/// RawEventPersisted references exact evidence after durable Raw Store preservation.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RawEventPersisted {
+    #[prost(string, tag="1")]
+    pub event_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub tenant_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub source_id: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub sensor_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub event_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="6")]
+    pub ingest_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="7")]
+    pub content_type: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub encoding: ::prost::alloc::string::String,
+    #[prost(uint64, tag="9")]
+    pub raw_size: u64,
+    #[prost(string, tag="10")]
+    pub raw_hash_algorithm: ::prost::alloc::string::String,
+    #[prost(string, tag="11")]
+    pub raw_hash: ::prost::alloc::string::String,
+    #[prost(string, tag="12")]
+    pub transport: ::prost::alloc::string::String,
+    #[prost(string, tag="13")]
+    pub remote_identity: ::prost::alloc::string::String,
+    #[prost(uint64, optional, tag="14")]
+    pub sequence_number: ::core::option::Option<u64>,
+    #[prost(enumeration="IntegrityStatus", tag="15")]
+    pub integrity_status: i32,
+    #[prost(string, tag="16")]
+    pub pipeline_version: ::prost::alloc::string::String,
+    #[prost(string, tag="17")]
+    pub storage_uri: ::prost::alloc::string::String,
+    #[prost(string, tag="18")]
+    pub segment_id: ::prost::alloc::string::String,
+    #[prost(uint64, tag="19")]
+    pub offset: u64,
+    #[prost(uint64, tag="20")]
+    pub length: u64,
+    #[prost(message, optional, tag="21")]
+    pub persisted_at: ::core::option::Option<::prost_types::Timestamp>,
+}
 /// Transformation records provenance for a material processing step.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Transformation {
