@@ -16,6 +16,7 @@ docker compose --env-file .env -f deploy/compose/compose.yaml config --quiet
 ./scripts/dev/up.sh
 ./scripts/dev/bootstrap-nats.sh
 ./scripts/dev/health.sh
+./scripts/tests/raw-preservation-postgres.sh
 
 set -a
 # shellcheck disable=SC1091

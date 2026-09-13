@@ -26,4 +26,8 @@ M3 Step 2 proves:
 - a pending outbox redelivery republishes the same derived message ID and then becomes ACK-eligible;
 - conflicting `(consumer_name, message_id)` state is isolated instead of silently accepted.
 
+## PostgreSQL schema integration
+
+`make integration` runs `scripts/tests/raw-preservation-postgres.sh` after infrastructure health succeeds. The check reapplies migration `000002_raw_preservation.sql`, verifies all three control-plane tables plus the `NOLOGIN` service role, exercises a locator + outbox + processed-message transaction under `SET ROLE cerbero_raw_preserver`, marks the outbox publication complete, rolls the fixture back, and proves the service role cannot update raw locators or delete outbox rows.
+
 These are component tests for orchestration semantics. PostgreSQL migrations, filesystem/object Raw Store implementation, JetStream durable-consumer wiring, actual ACK/NAK, DLQ, and crash-injection integration remain later M3 increments.

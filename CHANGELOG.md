@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 3 PostgreSQL raw-preservation schema for immutable raw locators, critical-consumer processed-message idempotency, transactional outbox state, and a least-privilege `cerbero_raw_preserver` role with Compose integration coverage.
 - Milestone 3 concrete `RawEventPersisted` outbox builder producing deterministic `CerberoEnvelope` bytes with stable derived UUIDv7 identity, causation/trace propagation, raw locator metadata, and ADR-0007 request correlation.
 - Canonical `RawEventPersisted` v1 Protobuf source, generated Rust/Go bindings, shared wire fixture, semantic contract checks, and runtime validators for the durable Raw Store handoff.
 - ADR-0009 closing the missing v1 `RawEventPersisted` payload contract and its raw-locator/normalizer handoff semantics without retransmitting authoritative raw bytes.

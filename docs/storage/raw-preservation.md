@@ -81,7 +81,22 @@ The canonical source now defines `RawEventPersisted` as `cerbero.raw_event_persi
 
 The builder is invoked only when `(consumer_name, incoming message_id)` has no durable preservation record. The outbox stores the returned derived `message_id` and serialized envelope bytes; retry/recovery republishes that stored publication instead of rebuilding it.
 
-## Still open after M3 Step 4
+## M3 Step 5A: PostgreSQL durable-state schema
+
+Migration `000002_raw_preservation.sql` establishes the control-plane tables used by the raw-preserver:
+
+- `system.raw_objects` stores `event_id`, `storage_uri`, `segment_id`, byte offset/length, the lowercase SHA-256 locator hash, and creation time. It never stores `raw_payload`.
+- `system.processed_messages` materializes critical-consumer idempotency with primary key `(consumer_name, message_id)` and links one processed delivery to its functional `event_id` and stable outbox publication.
+- `system.outbox` stores the derived publication `message_id`, subject, optional ADR-0007 request ID, serialized envelope bytes, creation time, and nullable `published_at`.
+- SQL `byte_offset` and `byte_length` use `numeric(20,0)` with explicit `uint64` bounds so the storage layer does not silently narrow the governed Protobuf `uint64` range.
+
+`cerbero_raw_preserver` is a `NOLOGIN` least-privilege database role. It may read/insert locator and processed-message rows, read/insert outbox rows, and update only `system.outbox.published_at`. It receives no delete permission and cannot mutate raw locator rows.
+
+The Step 5B adapter must create locator, processed-message, and outbox state in one PostgreSQL transaction after the Raw Store write is verified. Marking `published_at` remains a separate idempotent operation performed only after JetStream confirms the derived publication.
+
+The development Compose init directory runs migrations on fresh PostgreSQL volumes. The integration gate also reapplies the idempotent Step 5A migration explicitly before validating schema/grants, so an existing development volume does not masquerade as migration coverage. No production migration runner is selected by this increment.
+
+## Still open after M3 Step 5A
 
 - concrete object-storage provider;
 - exact raw segment size/rotation;
