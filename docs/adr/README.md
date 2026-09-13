@@ -22,4 +22,5 @@ Current accepted ADRs:
 - ADR-0005 — contract v1 enum closure and code generation;
 - ADR-0006 — contract v1 runtime validation;
 - ADR-0007 — request correlation metadata on the v1 event bus;
-- ADR-0008 — raw-preserver service and durable publication boundary.
+- ADR-0008 — raw-preserver service and durable publication boundary;
+- ADR-0009 — RawEventPersisted v1 payload closure.

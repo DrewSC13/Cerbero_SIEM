@@ -57,6 +57,10 @@ The core deliberately returns a disposition instead of ACKing JetStream itself. 
 
 The `PublicationBuilder` payload remains opaque in Step 2. This prevents implementation code from inventing a `RawEventPersisted` wire payload before contract governance defines it.
 
+## M3 Step 3A: RawEventPersisted contract decision
+
+ADR-0009 closes the missing v1 payload semantics for `cerbero.v1.raw.persisted`. The governed payload is a metadata/locator projection of the preserved RawEvent plus `persisted_at`; it never retransmits `raw_payload`. Step 3B will add the canonical Protobuf source, generated Rust/Go bindings, semantic checks, and runtime validation before the Step 2 publication builder is made concrete.
+
 ## Still open after M3 Step 2
 
 - concrete object-storage provider;
