@@ -82,13 +82,30 @@ Cerbero-Request-Id: <request_id>
 
 The header is observability/audit correlation metadata only. It does not replace `trace_id`, `causation_id`, or `correlation_id`, and it must never be used as an authentication or authorization input. Request-associated downstream publications should propagate the validated header while the request context remains relevant.
 
-## Deliberately not implemented after Step 2
+## M2 Step 3: durable JetStream admission
+
+`services/cerbero-ingest/internal/eventbus.JetStreamAcceptor` implements the durable-admission boundary used by the HTTP adapter:
+
+1. validate the prepared `CerberoEnvelope`;
+2. validate ADR-0007 request metadata when present;
+3. serialize the envelope as Protobuf bytes;
+4. publish synchronously to `cerbero.v1.raw.received`;
+5. set `Nats-Msg-Id` to the stable envelope `message_id`;
+6. propagate `Cerbero-Request-Id` when the ingest request has one;
+7. return success only after a non-null JetStream `PubAck`.
+
+A duplicate JetStream acknowledgement is successful durable admission: it means the same transport identity was already accepted within JetStream's deduplication window. No content-hash deduplication is introduced.
+
+Step 3 deliberately does not add internal publish retries. Retry attempts, backoff, jitter, and retry budgets remain open policy and are not frozen by this implementation. The caller's `context.Context` bounds the synchronous publish operation.
+
+`make integration` now exercises the acceptor against the real development JetStream using the least-privilege `cerbero_ingest` identity, verifies the stored subject and transport headers with the development admin identity, and removes the integration message afterward.
+
+## Deliberately not implemented after Step 3
 
 `Prepare` is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside this commit:
 
 - connection/rate/timeouts and per-frontend limit configuration;
 - syslog adapter skeleton and journald collector contract;
-- JetStream publish to `cerbero.v1.raw.received`;
 - NATS outage behavior and readiness degradation;
 - raw-preserver, Raw Store persistence, `raw.persisted`, ACK/retry/DLQ behavior (Milestone 3).
 

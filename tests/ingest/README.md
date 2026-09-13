@@ -2,6 +2,16 @@
 
 Milestone 2 tests live with the Go implementation so `make go-check` executes them for the owning module.
 
+Step 3 JetStream admission coverage:
+
+- serializes and publishes the prepared `CerberoEnvelope` on `cerbero.v1.raw.received`;
+- sets `Nats-Msg-Id` from the stable `message_id`;
+- propagates validated ADR-0007 `Cerbero-Request-Id` metadata when present;
+- rejects invalid request metadata before publish;
+- fails durable admission on publish error or missing `PubAck`;
+- accepts duplicate `PubAck` as the same transport identity already admitted;
+- verifies a real stored message and both headers against the development JetStream during `make integration`.
+
 Step 2 JSON/HTTP component coverage:
 
 - preserves the exact JSON request-body bytes across syntax validation;
@@ -24,4 +34,4 @@ Step 1 common-core coverage:
 - stable `CerberoError` mapping for ingest-core failures;
 - UUIDv7 version/variant/timestamp layout and secure-random failure behavior.
 
-The HTTP component tests use an injected durable-acceptor fake and therefore do not claim real JetStream durability. Production JetStream admission, NATS outage/readiness behavior, retry/DLQ, and raw-preserver crash/idempotency tests remain future work and must not be reported as passing yet.
+Step 3 supplies and integration-tests the real JetStream durable acceptor, so HTTP's durability boundary now has an executable production implementation. Process wiring, NATS outage/readiness behavior, retry policy, DLQ, and raw-preserver crash/idempotency tests remain future work and must not be reported as passing yet.

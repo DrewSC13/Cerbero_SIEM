@@ -72,10 +72,10 @@ contracts-generate: ## Generate pinned Rust and Go bindings from canonical Proto
 contracts-generated-check: ## Regenerate bindings and fail if tracked output drifts.
 	@./scripts/contracts/check-generated.sh
 
-integration: ## Run Milestone 0 infrastructure integration tests (requires Docker Compose).
+integration: ## Run infrastructure and M2 durable-ingest integration tests (requires Docker Compose).
 	@./scripts/tests/milestone0-integration.sh
 
-e2e: ## M2 Step 1 has no durable ingest/analytical E2E pipeline yet; verify the explicit gate.
+e2e: ## Verify the explicit E2E boundary while Raw Preservation remains unimplemented.
 	@./scripts/tests/milestone0-e2e-gate.sh
 
 ci: verify format lint build test security-check contracts ## Local equivalent of the required CI gate.

@@ -55,6 +55,15 @@ Milestone 2 JSON/HTTP component tests (through the Go gates)
   -> durable-admission required before 202
   -> 503 on durable-admission failure
 
+Milestone 2 JetStream admission tests
+  -> envelope Protobuf publication on cerbero.v1.raw.received
+  -> message_id as Nats-Msg-Id transport deduplication identity
+  -> ADR-0007 Cerbero-Request-Id propagation
+  -> request metadata validation before publish
+  -> publish error / missing PubAck rejection
+  -> duplicate PubAck accepted as durable success
+  -> live development JetStream storage verification
+
 Milestone 2 ingest-core unit tests (through the Go gates)
   -> UUIDv7 generation and secure-random failure behavior
   -> exact-byte RawEvent construction and immutable input-copy semantics
@@ -68,6 +77,7 @@ integration
   -> PostgreSQL
   -> ClickHouse
   -> NATS JetStream + v1 stream topology
+  -> M2 synchronous RawEvent envelope durable publication + stored header verification
 ```
 
 The Go gates discover every `go.mod` recursively below `services/`, including the shared contracts module. Repository-local Go modules are linked by the root `go.work`; they are not represented as synthetic `v0.0.0` requirements in sibling `go.mod` files. External dependencies remain pinned in the owning module. The build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
@@ -81,7 +91,7 @@ Contract tests must also satisfy the active Clippy style lints; concrete default
 
 ## E2E honesty
 
-Milestones 0–1 and M2 Steps 1–2 do not claim a production durable-ingest or analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real ingest E2E requires JetStream admission and raw preservation; the full analytical E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
+Milestones 0–1 and M2 Steps 1–2 do not claim durable ingest. M2 Step 3 proves durable JetStream admission but still does not claim Raw Preservation or an analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real ingest E2E requires JetStream admission and raw preservation; the full analytical E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
 
 ## Future hierarchy
 
