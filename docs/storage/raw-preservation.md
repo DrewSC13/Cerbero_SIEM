@@ -120,7 +120,15 @@ Directory creation follows the locked tenant/UTC hierarchy and rejects symlink/n
 
 Step 6 deliberately does **not** close the provisional segment or emit a segment manifest. STORAGE v1 requires manifest + manifest hash when a segment is closed, while the definitive manifest schema is still open. Segment closure/chaining is therefore a separate M3 increment rather than an ad-hoc schema invented by this adapter.
 
-## Still open after M3 Step 6
+## M3 Step 7: JetStream raw.persisted publisher
+
+`JetStreamPublisher` is the concrete preservation `Publisher`. It synchronously publishes the exact serialized outbox payload to `cerbero.v1.raw.persisted`, sets `Nats-Msg-Id` to the already-persisted derived `Publication.MessageID`, and propagates ADR-0007 `Cerbero-Request-Id` transport metadata when present. The adapter does not rebuild or reserialize the envelope.
+
+Success requires a non-nil JetStream PubAck from the locked `CERBERO_RAW` stream with a non-zero stream sequence. A duplicate PubAck is success: this is the required recovery path when JetStream accepted the first publication but the raw-preserver crashed before PostgreSQL `MarkPublished`. Reusing the stable outbox `message_id` allows JetStream duplicate suppression while PostgreSQL remains the authority for whether publication completion has been marked.
+
+The adapter validates the locked subject, UUIDv7 publication identity, optional UUIDv7 request correlation, and non-empty payload before transport. It does not ACK `raw.received`; ACK/NAK/DLQ behavior remains the responsibility of the future durable-consumer runtime. The integration test uses the existing least-privilege `NATS_RAW_PRESERVER_*` identity and verifies the real `CERBERO_RAW` boundary.
+
+## Still open after M3 Step 7
 
 - production object-storage provider;
 - exact raw segment size/rotation;
