@@ -62,7 +62,7 @@ integration
   -> NATS JetStream + v1 stream topology
 ```
 
-The Go gates discover every `go.mod` recursively below `services/`, including the shared contracts module. The build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
+The Go gates discover every `go.mod` recursively below `services/`, including the shared contracts module. Repository-local Go modules are linked by the root `go.work`; they are not represented as synthetic `v0.0.0` requirements in sibling `go.mod` files. External dependencies remain pinned in the owning module. The build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
 
 Infrastructure health checks use bounded retries because PostgreSQL and ClickHouse can transiently reject requests while their fresh development volumes are initialized. PostgreSQL must also be running its final PID 1 `postgres` process before `pg_isready` can satisfy the gate; this excludes the temporary server started by the image entrypoint during `initdb`. NATS readiness is validated with `stream ls`, which simultaneously verifies connectivity, authentication, and JetStream availability without relying on version-specific `server ping` flags.
 

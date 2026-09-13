@@ -32,6 +32,10 @@ Authentication and authorization remain transport/security integrations rather t
 
 `sensor_id` is required by default. A configured source type may allow it to be absent, in which case the core preserves the absence instead of fabricating an identifier.
 
+## Go workspace dependency boundary
+
+`cerbero-ingest` consumes the shared contracts module through the repository `go.work` workspace. The local module path `cerbero/services/internal/contracts` must not be added as a versioned `require` entry in `services/cerbero-ingest/go.mod`; Go treats versioned module requirements as downloadable module paths and rejects this repository-local path because its first element is not a DNS-style module host. The ingest module pins only external runtime dependencies such as `google.golang.org/protobuf`.
+
 ## Error contract
 
 Request failures returned by the core use `CerberoError` through `ingestcore.Error` with stable initial codes:
