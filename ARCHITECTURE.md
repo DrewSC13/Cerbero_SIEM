@@ -24,7 +24,7 @@ RawEvent -> NormalizedEvent -> Signal -> Finding -> Incident -> Case
 ## Component ownership
 
 - Rust: `cerbero-common`, `cerbero-tui`, `cerbero-normalizer`, `cerbero-integrity`, `cerbero-detection-core`, `cerbero-agent`, critical parsers.
-- Go: `cerbero-ingest`, `cerbero-api`, `cerbero-coordinator`, `cerbero-scheduler`, `cerbero-worker`.
+- Go: `cerbero-ingest`, `cerbero-raw-preserver`, `cerbero-api`, `cerbero-coordinator`, `cerbero-scheduler`, `cerbero-worker`.
 - Python: tooling, datasets, detection engineering, STIX/TAXII, validation, experimentation, analytics; not the mass-ingest critical path.
 - C++: excluded unless a measured/native/interoperability constraint is documented.
 
@@ -60,6 +60,8 @@ NATS JetStream is the initial durable bus. The v1 stream boundaries are:
 - `CERBERO_DLQ` -> `cerbero.v1.dlq.*`
 
 Delivery is at-least-once. Consumers must be idempotent and ACK only after a durable side effect (or confirmed prior idempotent completion). The normalizer consumes `raw.persisted`, never `raw.received`.
+
+ADR-0008 assigns raw preservation to the standalone Go `cerbero-raw-preserver` service. It uses `message_id` for transport-delivery idempotency, preserves `event_id` as the functional RawEvent identity, stores raw locator/idempotency state in PostgreSQL, and uses a PostgreSQL transactional outbox for reliable `raw.persisted` publication without assuming a cross-store distributed transaction.
 
 ## Interface isolation
 

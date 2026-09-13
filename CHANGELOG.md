@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- ADR-0008 defining the standalone Go raw-preserver boundary, transport idempotency, PostgreSQL locator/processed-message ownership, and transactional-outbox publication of `raw.persisted`.
 - Milestone 2 closure gates for backend-neutral ingest metrics, native-sequence gap detection fixtures, and NATS-outage behavior proving NOT READY plus retryable non-acceptance.
 - Milestone 2 syslog adapter skeleton and journald collector contract, preserving source evidence without freezing open syslog framing/UDP policy or journald canonicalization decisions.
 - Milestone 2 DEVELOPMENT runtime composition for JSON/HTTP → staged IngestCore → JetStream, with fail-closed production startup, loopback-only insecure development binding, explicit frontend limits, live/ready health endpoints, graceful shutdown, and full HTTP-to-JetStream integration coverage.
