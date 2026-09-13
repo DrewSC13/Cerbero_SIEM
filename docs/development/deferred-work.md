@@ -5,7 +5,7 @@ This file lists known work that is intentionally outside repository bootstrap. T
 | Item | Why deferred | Required milestone / gate |
 | --- | --- | --- |
 | Pin GitHub Actions by immutable commit SHA | Action SHAs are hosting/supply-chain hardening beyond the local bootstrap; major tags are used initially | Before first public release; security hardening |
-| Complete ingest frontends and durable acceptance wiring | Common IngestCore now constructs validated RawEvent/envelopes; JSON HTTP, syslog/journald boundaries, request IDs, rate/timeouts, and durable bus admission remain intentionally separate | Milestone 2 for frontends; Milestone 3 for JetStream/raw preservation |
+| Implement production syslog transport and journald host collector | M2 defines the common core, JSON HTTP runtime, syslog adapter skeleton, and journald collector contract; exact syslog TCP framing, UDP support policy, and source-specific host integration remain intentionally open | Before enabling those source types in an MVP deployment |
 | Implement raw-preserver and segment manifests | Requires real contracts and event flow | Milestone 3 |
 | Select/pin OCSF version | Baseline makes OCSF canonical but implementation version belongs with mappings | Milestone 4 |
 | Add application service containers to Compose | Fake containers are intentionally avoided until each service exists | Owning implementation milestone |

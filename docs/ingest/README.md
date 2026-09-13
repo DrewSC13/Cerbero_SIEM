@@ -128,11 +128,24 @@ The event-admission rate limiter runs inside `IngestCore.Begin` after authentica
 
 `make integration` now performs a real JSON/HTTP request through the composed runtime, verifies `202 Accepted`, reads the resulting `cerbero.v1.raw.received` message from JetStream, validates request/message correlation, and verifies that the `RawEvent` contains the exact HTTP bytes.
 
-## Deliberately not implemented after Step 4B
+## M2 Step 5: remaining source boundaries
+
+`services/cerbero-ingest/internal/syslogingest` defines the syslog adapter skeleton over the same staged `IngestCore` and `DurableAcceptor` boundaries as JSON/HTTP. A transport implementation calls `Begin` before reading a framed syslog message, then passes the exact frame bytes to `Session.Accept`. The skeleton does not parse facility, severity, hostname, structured data, line endings, or any RFC fields, and it does not trim or rewrite the payload.
+
+The skeleton deliberately does not open TCP/UDP sockets and does not choose a framing algorithm. TCP framing remains an explicit open decision in the architectural baseline, and UDP support policy is also open. A future transport implementation must provide one already-framed evidence unit without changing its bytes.
+
+`services/cerbero-ingest/internal/journald` defines the journald collector contract. Each entry preserves exactly one of:
+
+- the original journald field set with byte values; or
+- a canonical raw representation supplied by a future source-specific collector contract.
+
+The contract also carries the journald cursor when available and common source metadata. It intentionally does not invent a canonical serialization for field sets, map cursor values into `RawEvent.sequence_number`, access the host journal, or perform OCSF mapping. Those choices remain owned by their source-specific/normalization milestones.
+
+## Deliberately not implemented after Step 5
 
 Payload preparation is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside this commit:
 
-- syslog adapter skeleton and journald collector contract;
+- production syslog network transport/framing and concrete journald host collector;
 - production TLS/mTLS source authentication, certificate/revocation integration, and production security-profile wiring;
 - raw-preserver, Raw Store persistence, `raw.persisted`, ACK/retry/DLQ behavior (Milestone 3).
 

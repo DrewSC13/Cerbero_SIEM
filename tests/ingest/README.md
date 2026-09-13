@@ -2,6 +2,14 @@
 
 Milestone 2 tests live with the Go implementation so `make go-check` executes them for the owning module.
 
+Step 5 source-boundary coverage:
+
+- syslog starts common-core admission before a future framing layer supplies payload bytes;
+- exact framed syslog bytes and declared content/encoding metadata are not parsed or rewritten;
+- syslog returns an accepted result only after the durable acceptor succeeds;
+- journald preserves an original byte-valued field set or a preexisting canonical raw representation, never both;
+- journald cursor/source metadata remain separate from OCSF and `sequence_number` decisions.
+
 Step 3 JetStream admission coverage:
 
 - serializes and publishes the prepared `CerberoEnvelope` on `cerbero.v1.raw.received`;
@@ -49,4 +57,4 @@ Step 1 common-core coverage:
 - stable `CerberoError` mapping for ingest-core failures;
 - UUIDv7 version/variant/timestamp layout and secure-random failure behavior.
 
-Step 3 supplies and integration-tests the real JetStream durable acceptor, so HTTP's durability boundary now has an executable production implementation. Process wiring, NATS outage/readiness behavior, retry policy, DLQ, and raw-preserver crash/idempotency tests remain future work and must not be reported as passing yet.
+Step 3 supplies and integration-tests the real JetStream durable acceptor, and Step 4B composes the DEVELOPMENT JSON/HTTP runtime. Step 5 adds only the architecture-required syslog skeleton and journald contract; it does not claim concrete syslog socket/framing or journald host collection. NATS outage behavior, retry policy, DLQ, and raw-preserver crash/idempotency tests remain future work and must not be reported as passing yet.

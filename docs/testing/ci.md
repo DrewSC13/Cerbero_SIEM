@@ -75,6 +75,13 @@ Milestone 2 runtime-composition tests
   -> live JSON/HTTP request returns 202 only after stored JetStream admission
   -> stored RawEvent retains the exact HTTP request bytes
 
+Milestone 2 source-boundary tests
+  -> syslog admission uses the common staged IngestCore boundary
+  -> syslog framed evidence bytes and declared metadata pass through unchanged
+  -> syslog reports success only after the durable acceptor succeeds
+  -> journald accepts original field-set bytes or a preexisting canonical raw representation
+  -> journald rejects ambiguous/missing evidence forms and non-journald transport metadata
+
 Milestone 2 ingest-core unit tests (through the Go gates)
   -> UUIDv7 generation and secure-random failure behavior
   -> exact-byte RawEvent construction and immutable input-copy semantics
