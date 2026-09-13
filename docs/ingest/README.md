@@ -141,9 +141,21 @@ The skeleton deliberately does not open TCP/UDP sockets and does not choose a fr
 
 The contract also carries the journald cursor when available and common source metadata. It intentionally does not invent a canonical serialization for field sets, map cursor values into `RawEvent.sequence_number`, access the host journal, or perform OCSF mapping. Those choices remain owned by their source-specific/normalization milestones.
 
-## Deliberately not implemented after Step 5
+## M2 Step 6: closure gates
 
-Payload preparation is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside this commit:
+`services/cerbero-ingest/internal/ingestmetrics` instruments the DEVELOPMENT ingest endpoint with backend-neutral, concurrency-safe counters and latency observations. The runtime records received, accepted, rejected, and byte totals plus payload-too-large, authentication, authorization, rate-limit, and publish-failure counters. `ingest_rate` is derived by a future exporter from event counters over time rather than freezing a windowing algorithm in M2. Health endpoints are excluded from ingest-event metrics.
+
+No metrics backend or exporter is selected. OPERATIONS v1 explicitly leaves that backend and the final tool-specific naming convention open; M2 therefore exposes typed metric semantics without introducing Prometheus, OpenTelemetry, or high-cardinality labels. Event IDs, arbitrary source values, usernames, and IP addresses are not metric labels.
+
+`services/cerbero-ingest/internal/sourcegap` provides the required native-sequence gap detector and a reproducible fixture. State is isolated by tenant/source/sensor. A first sequence initializes state; contiguous sequences advance it; duplicates/backward values do not create gaps; and an observed forward jump reports the expected and observed sequence numbers. Sources without a native `sequence_number` do not receive an invented sequence. The detector result is not a new bus payload contract: publication on the reserved `cerbero.v1.system.source.gap_detected` subject remains deferred until the payload schema is governed.
+
+The integration suite now includes a NATS-outage contract test using a real NATS client connection. After the runtime is READY, the ingest NATS connection is closed to make the durable dependency unavailable. The test requires `/readyz` to return `503`, the ingest request to return retryable `CER-BUS-PUBLISH-FAILED` rather than `202`, and the publish-failure/rejected metrics to increment without an accepted event.
+
+With Step 6, the M2 side of the INGEST definition of done is closed. Durable consumers, raw preservation, `raw.persisted`, ACK-after-storage, consumer retry/DLQ, Raw Store outage, and consumer-lag metrics remain Milestone 3 responsibilities.
+
+## Deliberately not implemented after Step 6
+
+Payload preparation is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside Milestone 2:
 
 - production syslog network transport/framing and concrete journald host collector;
 - production TLS/mTLS source authentication, certificate/revocation integration, and production security-profile wiring;

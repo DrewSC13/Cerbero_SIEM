@@ -2,7 +2,7 @@
 
 CERBERO is an open-source, terminal-first, API-first SIEM focused on traceability, reproducibility, auditability, interoperability, and least privilege.
 
-**Repository status:** Milestone 2 — RawEvent + ingest (in progress). Milestones 0 and 1 are complete and validated locally and in GitHub Actions. Canonical v1 contracts, generated Rust/Go bindings, runtime validation, and contract compatibility tests are established; M2 is implementing the common ingest boundary before durable event-bus publication.
+**Repository status:** Milestone 2 — RawEvent + ingest is complete pending merge validation. Milestones 0 and 1 are complete. M2 now provides the common ingest core, JSON/HTTP DEVELOPMENT runtime, durable RawEvent admission to JetStream, syslog/journald source boundaries, source-gap detection fixtures, backend-neutral ingest instrumentation, and NATS-outage contract coverage. Milestone 3 adds raw preservation and durable consumer semantics.
 
 ## Architectural source of truth
 

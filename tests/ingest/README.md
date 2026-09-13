@@ -2,6 +2,15 @@
 
 Milestone 2 tests live with the Go implementation so `make go-check` executes them for the owning module.
 
+Step 6 closure coverage:
+
+- records backend-neutral received/accepted/rejected/byte metrics and ingest latency observations;
+- classifies payload-too-large, authn, authz, rate-limit, and publish-failure counters without source/event labels;
+- detects reproducible forward native-sequence gaps without inventing sequence numbers;
+- keeps gap state isolated by tenant/source/sensor and ignores duplicates/backward values as gaps;
+- simulates NATS unavailability by closing a real ingest NATS connection after readiness;
+- requires NOT READY, retryable `CER-BUS-PUBLISH-FAILED`, no `202`, and matching rejection/publish-failure metrics.
+
 Step 5 source-boundary coverage:
 
 - syslog starts common-core admission before a future framing layer supplies payload bytes;
@@ -57,4 +66,4 @@ Step 1 common-core coverage:
 - stable `CerberoError` mapping for ingest-core failures;
 - UUIDv7 version/variant/timestamp layout and secure-random failure behavior.
 
-Step 3 supplies and integration-tests the real JetStream durable acceptor, and Step 4B composes the DEVELOPMENT JSON/HTTP runtime. Step 5 adds only the architecture-required syslog skeleton and journald contract; it does not claim concrete syslog socket/framing or journald host collection. NATS outage behavior, retry policy, DLQ, and raw-preserver crash/idempotency tests remain future work and must not be reported as passing yet.
+Step 3 supplies and integration-tests the real JetStream durable acceptor, Step 4B composes the DEVELOPMENT JSON/HTTP runtime, Step 5 adds the required syslog/journald boundaries, and Step 6 closes the ingest-side outage/metrics/gap fixtures. Concrete syslog socket/framing, journald host collection, retry policy, DLQ, durable consumers, and raw-preserver crash/idempotency remain future work and must not be reported as M2.

@@ -75,6 +75,14 @@ Milestone 2 runtime-composition tests
   -> live JSON/HTTP request returns 202 only after stored JetStream admission
   -> stored RawEvent retains the exact HTTP request bytes
 
+Milestone 2 closure tests
+  -> backend-neutral ingest received/accepted/rejected/byte counters and latency observations
+  -> stable failure counters for payload/authn/authz/rate/publish failures without free-cardinality labels
+  -> native sequence gap fixture with independent per-source state and no invented sequence
+  -> NATS outage makes /readyz return 503
+  -> NATS outage returns retryable CER-BUS-PUBLISH-FAILED and never 202
+  -> outage increments rejected/publish-failure metrics without accepted events
+
 Milestone 2 source-boundary tests
   -> syslog admission uses the common staged IngestCore boundary
   -> syslog framed evidence bytes and declared metadata pass through unchanged
@@ -97,6 +105,7 @@ integration
   -> NATS JetStream + v1 stream topology
   -> M2 synchronous RawEvent envelope durable publication + stored header verification
   -> M2 composed DEVELOPMENT JSON/HTTP -> IngestCore -> JetStream runtime
+  -> M2 NATS-outage non-acceptance/readiness contract
 ```
 
 The Go gates discover every `go.mod` recursively below `services/`, including the shared contracts module. Repository-local Go modules are linked by the root `go.work`; they are not represented as synthetic `v0.0.0` requirements in sibling `go.mod` files. External dependencies remain pinned in the owning module. The build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
@@ -110,7 +119,7 @@ Contract tests must also satisfy the active Clippy style lints; concrete default
 
 ## E2E honesty
 
-Milestones 0–1 and M2 Steps 1–2 do not claim durable ingest. M2 Step 3 proves durable JetStream admission but still does not claim Raw Preservation or an analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real ingest E2E requires JetStream admission and raw preservation; the full analytical E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
+Milestone 2 proves RawEvent construction, source-boundary behavior, durable JetStream admission, readiness/non-acceptance during NATS outage, and ingest-side observability semantics. It still does not claim Raw Preservation or an analytical E2E pipeline. `make e2e` remains an explicit honesty gate documenting that boundary. The first RawEvent preservation E2E belongs to Milestone 3; the full analytical E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
 
 ## Future hierarchy
 

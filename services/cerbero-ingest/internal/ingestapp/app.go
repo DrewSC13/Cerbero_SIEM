@@ -11,6 +11,7 @@ import (
 	"cerbero/services/cerbero-ingest/internal/eventbus"
 	"cerbero/services/cerbero-ingest/internal/httpingest"
 	"cerbero/services/cerbero-ingest/internal/ingestcore"
+	"cerbero/services/cerbero-ingest/internal/ingestmetrics"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -61,6 +62,45 @@ func runWithListener(ctx context.Context, config Config, logger *slog.Logger, li
 		_ = listener.Close()
 		return fmt.Errorf("create JetStream client: %w", err)
 	}
+	return runWithDependencies(
+		ctx,
+		config,
+		logger,
+		listener,
+		connection,
+		js,
+		ingestmetrics.NewMemoryRecorder(),
+	)
+}
+
+func runWithDependencies(
+	ctx context.Context,
+	config Config,
+	logger *slog.Logger,
+	listener net.Listener,
+	connection *nats.Conn,
+	js jetstream.JetStream,
+	metrics ingestmetrics.Recorder,
+) error {
+	if err := config.Validate(); err != nil {
+		_ = listener.Close()
+		return err
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if connection == nil {
+		_ = listener.Close()
+		return errors.New("NATS connection is required")
+	}
+	if js == nil {
+		_ = listener.Close()
+		return errors.New("JetStream client is required")
+	}
+	if metrics == nil {
+		metrics = ingestmetrics.NewMemoryRecorder()
+	}
+
 	acceptor, err := eventbus.NewJetStreamAcceptor(js)
 	if err != nil {
 		_ = listener.Close()
@@ -95,7 +135,7 @@ func runWithListener(ctx context.Context, config Config, logger *slog.Logger, li
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(config.IngestPath, handler)
+	mux.Handle(config.IngestPath, ingestmetrics.Instrument(metrics, handler))
 	mux.HandleFunc("/livez", func(response http.ResponseWriter, _ *http.Request) {
 		response.WriteHeader(http.StatusOK)
 	})

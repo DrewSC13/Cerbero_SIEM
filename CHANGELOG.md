@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 2 closure gates for backend-neutral ingest metrics, native-sequence gap detection fixtures, and NATS-outage behavior proving NOT READY plus retryable non-acceptance.
 - Milestone 2 syslog adapter skeleton and journald collector contract, preserving source evidence without freezing open syslog framing/UDP policy or journald canonicalization decisions.
 - Milestone 2 DEVELOPMENT runtime composition for JSON/HTTP → staged IngestCore → JetStream, with fail-closed production startup, loopback-only insecure development binding, explicit frontend limits, live/ready health endpoints, graceful shutdown, and full HTTP-to-JetStream integration coverage.
 - Milestone 2 synchronous JetStream `DurableAcceptor` for `cerbero.v1.raw.received`, with Protobuf envelope publication, `Nats-Msg-Id` deduplication identity, ADR-0007 request metadata, PubAck enforcement, unit coverage, and live JetStream integration coverage.
