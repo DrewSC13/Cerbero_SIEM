@@ -5,7 +5,7 @@ SHELL := /usr/bin/env bash
 PYTHONPATH := python/cerbero-tooling/src
 export PYTHONPATH
 
-.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate contracts-generated-check integration e2e ci dev-init dev-up dev-bootstrap dev-health dev-ingest dev-down dev-reset remote-readiness
+.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate contracts-generated-check integration e2e ci dev-init dev-up dev-bootstrap dev-health dev-ingest dev-raw-preserver dev-down dev-reset remote-readiness
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "; printf "CERBERO bootstrap targets:\n"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -87,14 +87,18 @@ dev-init: ## Create local development environment file and runtime directories.
 dev-up: ## Start PostgreSQL, ClickHouse, and NATS JetStream.
 	@./scripts/dev/up.sh
 
-dev-bootstrap: ## Create the locked JetStream stream topology.
+dev-bootstrap: ## Create JetStream topology and least-privilege development service identities.
 	@./scripts/dev/bootstrap-nats.sh
+	@./scripts/dev/bootstrap-postgres.sh
 
 dev-health: ## Check development infrastructure health.
 	@./scripts/dev/health.sh
 
 dev-ingest: ## Run the DEVELOPMENT-ONLY JSON/HTTP ingest service from .env.
 	@set -a; source .env; set +a; cd services/cerbero-ingest; exec go run .
+
+dev-raw-preserver: ## Run the DEVELOPMENT-ONLY durable raw-preserver service from .env.
+	@set -a; source .env; set +a; export CERBERO_NATS_URL="nats://127.0.0.1:$${NATS_PORT}"; cd services/cerbero-raw-preserver; exec go run .
 
 dev-down: ## Stop development infrastructure without deleting data volumes.
 	@./scripts/dev/down.sh

@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 3 executable development raw-preserver runtime with a durable `raw-preserver` pull consumer, explicit ACK/retry/isolate transport semantics, least-privilege NATS consumer API permissions, service-specific PostgreSQL login bootstrap, and UUIDv7 runtime identity generation.
 - Milestone 3 real PostgreSQL `MetadataStore` integration coverage with the least-privilege application role, full uint64 locator round-trip, idempotent publication completion, conflict rollback, and forbidden-delete verification.
 - Milestone 3 JetStream `raw.persisted` publisher with stable `Nats-Msg-Id`, ADR-0007 request correlation, strict PubAck validation, duplicate-safe recovery semantics, and a real JetStream integration test.
 - Milestone 3 development filesystem Raw Store adapter with exact-byte SHA-256 verification, durable no-overwrite publication, deterministic locator recovery, and concurrent redelivery convergence.

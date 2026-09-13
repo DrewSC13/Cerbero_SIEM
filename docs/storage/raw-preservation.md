@@ -136,11 +136,21 @@ The integration test creates a temporary login role that inherits the migration-
 
 This closes the SQL-semantic gap between the package-local transaction fakes and PostgreSQL 18 while preserving the architecture rule that raw bytes never enter PostgreSQL and that Raw Store/PostgreSQL/NATS do not form one distributed ACID transaction.
 
-## Still open after M3 Step 8
+## M3 Step 9: executable durable raw-preserver runtime
+
+The raw-preserver now has an executable DEVELOPMENT runtime that composes the existing preservation core with the development filesystem Raw Store, PostgreSQL metadata/outbox adapter, governed `RawEventPersisted` builder, and synchronous JetStream publisher. The durable consumer identity is fixed as `raw-preserver`, matching the critical-consumer idempotency key stored in PostgreSQL.
+
+The service creates or reconciles one explicit-ACK pull consumer on `CERBERO_RAW` filtered to `cerbero.v1.raw.received`. A core `ACK` disposition is translated to JetStream `DoubleAck` only after raw evidence, PostgreSQL state/outbox, `raw.persisted` publication, and `published_at` completion have succeeded. `RETRY` uses delayed NAK with deployment-configured jitter bounds; the development values are operational knobs and do not freeze the still-open v1 retry/backoff constants. `ISOLATE` terminates redelivery with a generic JetStream termination reason. It intentionally does not invent a Cerbero DLQ payload while the governed raw-DLQ contract remains open.
+
+The development runtime fails closed unless `CERBERO_DEV_MODE=1` and `CERBERO_SECURITY_PROFILE=DEVELOPMENT` are explicit. PostgreSQL uses a dedicated LOGIN role that inherits only the existing `cerbero_raw_preserver` NOLOGIN grants, provisioned by the development bootstrap from `.env`. The NATS identity receives only consumer-create/info/next and ACK API subjects scoped to `CERBERO_RAW/raw-preserver`, in addition to its already-locked data subjects.
+
+Startup owns connection lifecycle for PostgreSQL and NATS, validates the existing `var/raw`-style filesystem root, and generates derived UUIDv7 publication identities with wall-clock time plus cryptographic randomness. Production object storage, production secret delivery, HA/process supervision, and production retry tuning are not selected by this development composition.
+
+## Still open after M3 Step 9
 
 - production object-storage provider;
 - exact raw segment size/rotation;
 - exact retry count;
-- exact backoff intervals;
-- DLQ retention;
+- production retry/backoff policy values;
+- governed raw-DLQ payload/transition contract and retention;
 - final segment-manifest schema beyond the locked STORAGE baseline.
