@@ -108,9 +108,21 @@ The adapter verifies existing `event_id` locator metadata and existing derived `
 
 The adapter introduces no PostgreSQL driver dependency in Step 5B because it does not open connections. Production connection wiring and the durable JetStream consumer remain later M3 increments.
 
-## Still open after M3 Step 5A
+## M3 Step 6: development filesystem Raw Store adapter
 
-- concrete object-storage provider;
+`FilesystemRawStore` implements ADR-0003 for local development under the configured Raw Store root (`var/raw/` in the repository). `RawEvidence` now carries the governed RawEvent `ingest_time`, allowing the adapter to derive a stable UTC hierarchy without substituting local processing time.
+
+The development locator is `raw:///<tenant>/YYYY/MM/DD/HH/<segment_id>/raw.bin`. For this backend only, `segment_id = event_id` and each provisional segment directory contains one RawEvent object at offset `0`. This is an implementation detail of the development backend, not a v1 rule that every RawEvent has its own file or segment; production segmentation size/rotation remains open.
+
+Before any filesystem mutation the adapter validates UUIDv7 event identity, a safe tenant path component, `sha256`, exact byte length, and the hash over the untouched raw bytes. A new object is written to a `0600` temporary file, synchronized, then linked atomically into the final name without overwrite. The containing directory is synchronized and the final file is re-read to verify length and SHA-256 before `EnsureDurable` returns. Concurrent/redelivered calls converge on the same locator; an existing object is accepted only after verification and conflicting bytes are never rewritten.
+
+Directory creation follows the locked tenant/UTC hierarchy and rejects symlink/non-directory path components. Runtime files remain ignored by Git. The adapter uses the local filesystem directly and therefore adds no Compose service or production object-store dependency.
+
+Step 6 deliberately does **not** close the provisional segment or emit a segment manifest. STORAGE v1 requires manifest + manifest hash when a segment is closed, while the definitive manifest schema is still open. Segment closure/chaining is therefore a separate M3 increment rather than an ad-hoc schema invented by this adapter.
+
+## Still open after M3 Step 6
+
+- production object-storage provider;
 - exact raw segment size/rotation;
 - exact retry count;
 - exact backoff intervals;

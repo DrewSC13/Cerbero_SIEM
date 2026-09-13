@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	contractsv1 "cerbero/services/internal/contracts/v1"
 	contractvalidation "cerbero/services/internal/contracts/validation"
@@ -44,6 +45,7 @@ type Delivery struct {
 type RawEvidence struct {
 	TenantID      string
 	EventID       string
+	IngestTime    time.Time
 	HashAlgorithm string
 	Hash          string
 	Size          uint64
@@ -183,6 +185,7 @@ func (c *Core) Process(ctx context.Context, delivery Delivery) (Result, error) {
 	rawObject, err := c.rawStore.EnsureDurable(ctx, RawEvidence{
 		TenantID:      rawEvent.GetTenantId(),
 		EventID:       rawEvent.GetEventId(),
+		IngestTime:    rawEvent.GetIngestTime().AsTime().UTC(),
 		HashAlgorithm: rawEvent.GetRawHashAlgorithm(),
 		Hash:          rawEvent.GetRawHash(),
 		Size:          rawEvent.GetRawSize(),

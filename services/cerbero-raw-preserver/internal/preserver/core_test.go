@@ -120,6 +120,9 @@ func TestProcessHappyPathOrdersDurabilityBeforeACKEligibility(t *testing.T) {
 	if !reflect.DeepEqual(rawStore.received.Bytes, []byte("exact raw bytes\n")) {
 		t.Fatalf("raw bytes = %q", rawStore.received.Bytes)
 	}
+	if want := time.Unix(1_789_000_000, 0).UTC(); !rawStore.received.IngestTime.Equal(want) {
+		t.Fatalf("raw ingest_time = %s, want %s", rawStore.received.IngestTime, want)
+	}
 	if metadata.committed.Publication.MessageID != persistedMessageID {
 		t.Fatalf("committed derived message_id = %q", metadata.committed.Publication.MessageID)
 	}
