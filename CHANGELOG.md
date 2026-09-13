@@ -32,6 +32,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Fixed
 
+- Avoid copying generated Protobuf messages by value in JSON/HTTP adapter tests so Go `vet` copylock analysis remains clean.
 - Resolve the shared contracts module through the root Go workspace instead of declaring an invalid versioned repository-local module requirement in `cerbero-ingest`.
 - Prevent the Go build gate from leaving service executables in the repository working tree.
 - Make the remote-readiness gate reject untracked files as well as tracked or staged changes.

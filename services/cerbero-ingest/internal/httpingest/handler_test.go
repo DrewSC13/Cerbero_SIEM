@@ -198,13 +198,20 @@ func TestHandlerMapsDurableFailureToRetryable503(t *testing.T) {
 	}
 
 	var payload struct {
-		Error contractsv1.CerberoError `json:"error"`
+		Error *contractsv1.CerberoError `json:"error"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode error response: %v", err)
 	}
+	if payload.Error == nil {
+		t.Fatal("error response is missing error contract")
+	}
 	if payload.Error.GetCode() != "CER-BUS-PUBLISH-FAILED" || !payload.Error.GetRetryable() {
-		t.Fatalf("unexpected error contract: %#v", payload.Error)
+		t.Fatalf(
+			"unexpected error contract: code=%q retryable=%t",
+			payload.Error.GetCode(),
+			payload.Error.GetRetryable(),
+		)
 	}
 }
 
