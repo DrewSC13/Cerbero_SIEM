@@ -16,6 +16,11 @@ set +a
 : "${POSTGRES_RAW_PRESERVER_USER:?POSTGRES_RAW_PRESERVER_USER is required}"
 : "${POSTGRES_RAW_PRESERVER_PASSWORD:?POSTGRES_RAW_PRESERVER_PASSWORD is required}"
 
+if [[ "$POSTGRES_RAW_PRESERVER_USER" == "$POSTGRES_USER" ]]; then
+  echo "raw-preserver PostgreSQL login must differ from development admin" >&2
+  exit 1
+fi
+
 docker compose --env-file .env -f deploy/compose/compose.yaml exec -T postgres \
   psql \
     --username "$POSTGRES_USER" \
@@ -30,7 +35,7 @@ WHERE NOT EXISTS (
 \gexec
 
 SELECT format(
-    'ALTER ROLE %I WITH LOGIN PASSWORD %L',
+    'ALTER ROLE %I WITH LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD %L',
     :'app_user',
     :'app_password'
 )

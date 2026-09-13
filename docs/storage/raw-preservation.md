@@ -146,7 +146,15 @@ The development runtime fails closed unless `CERBERO_DEV_MODE=1` and `CERBERO_SE
 
 Startup owns connection lifecycle for PostgreSQL and NATS, validates the existing `var/raw`-style filesystem root, and generates derived UUIDv7 publication identities with wall-clock time plus cryptographic randomness. Production object storage, production secret delivery, HA/process supervision, and production retry tuning are not selected by this development composition.
 
-## Still open after M3 Step 9
+## M3 Step 10: real durable-consumer runtime integration
+
+The DEVELOPMENT integration gate now runs the executable raw-preserver composition against real PostgreSQL 18 and NATS JetStream. The test waits for the least-privilege service identity to create the durable `raw-preserver` consumer, publishes a governed `raw.received` envelope using the existing ingest NATS identity, and observes the resulting `raw.persisted` publication using the normalizer identity.
+
+The integration verifies the complete preservation effect: exact raw bytes exist once in the filesystem Raw Store, PostgreSQL exposes one published preservation record with the stable outbox `message_id`, and the emitted `RawEventPersisted` carries the original `raw.received` message as `causation_id`. It then resets the durable consumer to the original stream sequence to force the same stored `raw.received` message through the consumer again. The redelivery is ACKed idempotently without changing the stored outbox publication, creating another raw object, or emitting a second `raw.persisted` message.
+
+This is a real boundary integration for NATS ↔ raw-preserver ↔ Raw Store/PostgreSQL ↔ NATS. It complements the existing M2 JSON/HTTP ingest runtime tests; it does not yet claim the later normalization/ClickHouse/API/TUI analytical E2E.
+
+## Still open after M3 Step 10
 
 - production object-storage provider;
 - exact raw segment size/rotation;

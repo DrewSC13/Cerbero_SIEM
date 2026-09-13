@@ -75,7 +75,7 @@ contracts-generated-check: ## Regenerate bindings and fail if tracked output dri
 integration: ## Run infrastructure, ingest, and raw-preservation integration tests (requires Docker Compose).
 	@./scripts/tests/milestone0-integration.sh
 
-e2e: ## Verify the explicit E2E boundary while Raw Preservation remains unimplemented.
+e2e: ## Report the explicit staged E2E boundary after durable Raw Preservation.
 	@./scripts/tests/milestone0-e2e-gate.sh
 
 ci: verify format lint build test security-check contracts ## Local equivalent of the required CI gate.
