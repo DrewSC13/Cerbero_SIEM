@@ -96,6 +96,18 @@ The Step 5B adapter must create locator, processed-message, and outbox state in 
 
 The development Compose init directory runs migrations on fresh PostgreSQL volumes. The integration gate also reapplies the idempotent Step 5A migration explicitly before validating schema/grants, so an existing development volume does not masquerade as migration coverage. No production migration runner is selected by this increment.
 
+## M3 Step 5B: PostgreSQL MetadataStore adapter
+
+`PostgresMetadataStore` is the concrete `MetadataStore` implementation for the Step 5A schema. It receives an already-open `*sql.DB`; database driver choice, credentials, and connection lifecycle remain part of the future runtime composition rather than the preservation core.
+
+`CommitPreservation` uses one PostgreSQL transaction to create or verify the immutable raw locator, persist the exact stable outbox publication, and claim `(consumer_name, incoming message_id)` in `processed_messages`. `byte_offset` and `byte_length` cross the SQL boundary as decimal strings and are decoded with `strconv.ParseUint(..., 64)` so the adapter preserves the complete governed Protobuf `uint64` range.
+
+The adapter verifies existing `event_id` locator metadata and existing derived `message_id` outbox contents before accepting them. If a concurrent transaction wins the same critical-consumer key after tentative locator/outbox inserts, the losing transaction reloads the winner and rolls back its tentative rows before returning the durable record. The core then performs its existing identity/provenance validation, so incompatible duplicates remain isolate candidates rather than silently succeeding.
+
+`MarkPublished` is deliberately outside `CommitPreservation`: it runs only after the publisher reports durable JetStream admission and sets `published_at` with `COALESCE(published_at, now())`, preserving the first completion timestamp across repeated calls. No adapter operation deletes rows, rewrites raw locator metadata, stores raw bytes in PostgreSQL, or claims a distributed transaction with Raw Store/NATS.
+
+The adapter introduces no PostgreSQL driver dependency in Step 5B because it does not open connections. Production connection wiring and the durable JetStream consumer remain later M3 increments.
+
 ## Still open after M3 Step 5A
 
 - concrete object-storage provider;
