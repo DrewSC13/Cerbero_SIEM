@@ -17,6 +17,7 @@ if [[ "$actual_buf_version" != "$expected_buf_version" ]]; then
 fi
 
 python3 scripts/contracts/check.py
+python3 scripts/contracts/check-raw-segment-manifest.py
 (
   cd schemas/protobuf
   buf lint

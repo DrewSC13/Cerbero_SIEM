@@ -1,0 +1,11 @@
+{
+  "manifest_version": 1,
+  "segment_id": "01995000-0000-7000-8000-000000000002",
+  "tenant_id": "tenant-a",
+  "event_count": 1,
+  "first_event_id": "01995000-0000-7000-8000-000000000002",
+  "last_event_id": "01995000-0000-7000-8000-000000000002",
+  "created_at": "2026-09-13T18:30:00Z",
+  "previous_segment_hash": null,
+  "content_hash": "sha256:20f2c91b72cba17589a59e1261c7670488866cb4187354078d90916507608694"
+}
