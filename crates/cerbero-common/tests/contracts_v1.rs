@@ -1,6 +1,6 @@
 use cerbero_common::contracts::{
-    sha256_lower_hex, v1, validate_envelope, validate_raw_event, validate_timestamp,
-    validate_transformation, validate_uuid_v7,
+    sha256_lower_hex, v1, validate_envelope, validate_raw_event, validate_raw_event_persisted,
+    validate_timestamp, validate_transformation, validate_uuid_v7,
 };
 use prost::Message;
 use prost_types::{Any, Timestamp};
@@ -39,6 +39,35 @@ fn raw_event() -> v1::RawEvent {
     }
 }
 
+fn raw_event_persisted() -> v1::RawEventPersisted {
+    v1::RawEventPersisted {
+        event_id: EVENT_ID.to_owned(),
+        tenant_id: "tenant-a".to_owned(),
+        source_id: "source-a".to_owned(),
+        sensor_id: String::new(),
+        event_time: None,
+        ingest_time: Some(timestamp()),
+        content_type: "text/plain".to_owned(),
+        encoding: "utf-8".to_owned(),
+        raw_size: 3,
+        raw_hash_algorithm: "sha256".to_owned(),
+        raw_hash: sha256_lower_hex(b"abc"),
+        transport: "test".to_owned(),
+        remote_identity: "fixture".to_owned(),
+        sequence_number: Some(42),
+        integrity_status: 1,
+        pipeline_version: "v1".to_owned(),
+        storage_uri: "raw://tenant-a/segment-a".to_owned(),
+        segment_id: "segment-a".to_owned(),
+        offset: 0,
+        length: 3,
+        persisted_at: Some(Timestamp {
+            seconds: 2,
+            nanos: 0,
+        }),
+    }
+}
+
 fn decode_hex(input: &str) -> Vec<u8> {
     let input = input.trim();
     assert_eq!(input.len() % 2, 0);
@@ -59,6 +88,37 @@ fn shared_wire_fixture_round_trips() {
     let mut encoded = Vec::new();
     decoded.encode(&mut encoded).expect("message must encode");
     assert_eq!(encoded, fixture);
+}
+
+#[test]
+fn raw_event_persisted_shared_fixture_round_trips() {
+    let fixture = decode_hex(include_str!(
+        "../../../tests/fixtures/contracts/v1/raw_event_persisted_minimal.hex"
+    ));
+    let decoded =
+        v1::RawEventPersisted::decode(fixture.as_slice()).expect("persisted fixture must decode");
+    validate_raw_event_persisted(&decoded).expect("persisted fixture satisfies invariants");
+    assert_eq!(decoded.encode_to_vec(), fixture);
+}
+
+#[test]
+fn raw_event_persisted_rejects_invalid_locator_and_hash_metadata() {
+    let mut event = raw_event_persisted();
+    event.length += 1;
+    let violation =
+        validate_raw_event_persisted(&event).expect_err("locator length mismatch must fail");
+    assert_eq!(violation.field, "length");
+
+    let mut event = raw_event_persisted();
+    event.raw_hash = event.raw_hash.to_uppercase();
+    let violation = validate_raw_event_persisted(&event).expect_err("uppercase SHA-256 must fail");
+    assert_eq!(violation.field, "raw_hash");
+
+    let mut event = raw_event_persisted();
+    event.storage_uri.clear();
+    let violation =
+        validate_raw_event_persisted(&event).expect_err("missing storage URI must fail");
+    assert_eq!(violation.field, "storage_uri");
 }
 
 #[test]

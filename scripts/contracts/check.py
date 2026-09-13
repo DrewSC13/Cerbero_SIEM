@@ -58,6 +58,29 @@ EXPECTED_MESSAGES: dict[str, tuple[Field, ...]] = {
         Field("IntegrityStatus", "integrity_status", 16),
         Field("string", "pipeline_version", 17),
     ),
+    "RawEventPersisted": (
+        Field("string", "event_id", 1),
+        Field("string", "tenant_id", 2),
+        Field("string", "source_id", 3),
+        Field("string", "sensor_id", 4),
+        Field("google.protobuf.Timestamp", "event_time", 5),
+        Field("google.protobuf.Timestamp", "ingest_time", 6),
+        Field("string", "content_type", 7),
+        Field("string", "encoding", 8),
+        Field("uint64", "raw_size", 9),
+        Field("string", "raw_hash_algorithm", 10),
+        Field("string", "raw_hash", 11),
+        Field("string", "transport", 12),
+        Field("string", "remote_identity", 13),
+        Field("uint64", "sequence_number", 14, optional=True),
+        Field("IntegrityStatus", "integrity_status", 15),
+        Field("string", "pipeline_version", 16),
+        Field("string", "storage_uri", 17),
+        Field("string", "segment_id", 18),
+        Field("uint64", "offset", 19),
+        Field("uint64", "length", 20),
+        Field("google.protobuf.Timestamp", "persisted_at", 21),
+    ),
     "NormalizedEvent": (
         Field("string", "normalized_event_id", 1),
         Field("string", "raw_event_id", 2),
@@ -171,6 +194,7 @@ def load_sources() -> str:
         "error.proto",
         "normalized_event.proto",
         "raw_event.proto",
+        "raw_event_persisted.proto",
         "transformation.proto",
     }
     found = {path.name for path in files}
@@ -218,6 +242,17 @@ def verify_semantics(source: str) -> None:
         fail("Transformation must distinguish LIVE/REPLAY/TEST execution")
     if 'optional uint64 sequence_number = 15;' not in source:
         fail("RawEvent sequence_number must remain optional")
+    if 'optional uint64 sequence_number = 14;' not in source:
+        fail("RawEventPersisted sequence_number must remain optional")
+    persisted = re.search(
+        r"message\s+RawEventPersisted\s*\{(.*?)\n\}",
+        source,
+        re.DOTALL,
+    )
+    if persisted is None:
+        fail("RawEventPersisted message is required")
+    if "raw_payload" in persisted.group(1):
+        fail("RawEventPersisted must not retransmit raw_payload")
     if 'optional uint32 severity = 8;' not in source or 'optional uint32 activity_id = 9;' not in source:
         fail("NormalizedEvent optional scalar presence must be preserved")
 
@@ -228,6 +263,7 @@ def verify_definition_of_done_artifacts() -> None:
         EVENT_BUS_SEMANTICS,
         FIXTURE_ROOT / "raw_event_minimal.hex",
         FIXTURE_ROOT / "raw_event_invalid_size.hex",
+        FIXTURE_ROOT / "raw_event_persisted_minimal.hex",
     )
     for path in required_paths:
         if not path.is_file():
@@ -248,7 +284,11 @@ def verify_definition_of_done_artifacts() -> None:
         if token not in semantics:
             fail(f"event-bus semantics documentation is missing required token: {token}")
 
-    for name in ("raw_event_minimal.hex", "raw_event_invalid_size.hex"):
+    for name in (
+        "raw_event_minimal.hex",
+        "raw_event_invalid_size.hex",
+        "raw_event_persisted_minimal.hex",
+    ):
         text = (FIXTURE_ROOT / name).read_text(encoding="utf-8").strip()
         if not text or len(text) % 2 != 0 or re.fullmatch(r"[0-9a-f]+", text) is None:
             fail(f"fixture {name} must be non-empty lowercase hexadecimal wire bytes")

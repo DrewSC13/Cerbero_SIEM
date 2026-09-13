@@ -3,7 +3,7 @@ use std::fmt::{self, Write as _};
 use prost_types::Timestamp;
 use sha2::{Digest, Sha256};
 
-use super::v1::{CerberoEnvelope, NormalizedEvent, RawEvent, Transformation};
+use super::v1::{CerberoEnvelope, NormalizedEvent, RawEvent, RawEventPersisted, Transformation};
 
 const PROTO_TIMESTAMP_MIN_SECONDS: i64 = -62_135_596_800;
 const PROTO_TIMESTAMP_MAX_SECONDS: i64 = 253_402_300_799;
@@ -125,12 +125,11 @@ fn validate_required_timestamp(
     validate_timestamp(field, timestamp)
 }
 
-fn validate_sha256(
+fn validate_sha256_metadata(
     algorithm_field: &'static str,
     hash_field: &'static str,
     algorithm: &str,
     hash: &str,
-    bytes: &[u8],
 ) -> Result<(), ContractViolation> {
     if algorithm != "sha256" {
         return Err(ContractViolation::new(algorithm_field, "must equal sha256"));
@@ -145,6 +144,17 @@ fn validate_sha256(
             "must be a 64-character lowercase hexadecimal SHA-256 digest",
         ));
     }
+    Ok(())
+}
+
+fn validate_sha256(
+    algorithm_field: &'static str,
+    hash_field: &'static str,
+    algorithm: &str,
+    hash: &str,
+    bytes: &[u8],
+) -> Result<(), ContractViolation> {
+    validate_sha256_metadata(algorithm_field, hash_field, algorithm, hash)?;
     if sha256_lower_hex(bytes) != hash {
         return Err(ContractViolation::new(
             hash_field,
@@ -228,6 +238,42 @@ pub fn validate_raw_event(event: &RawEvent) -> Result<(), ContractViolation> {
         &event.raw_hash,
         &event.raw_payload,
     )
+}
+
+/// Validates the durable raw locator/metadata handoff used by `raw.persisted`.
+///
+/// # Errors
+///
+/// Returns a [`ContractViolation`] when identity, required locator metadata, timestamp, hash
+/// metadata, or byte-length invariants fail.
+pub fn validate_raw_event_persisted(event: &RawEventPersisted) -> Result<(), ContractViolation> {
+    validate_uuid_v7("event_id", &event.event_id)?;
+    for (field, value) in [
+        ("tenant_id", event.tenant_id.as_str()),
+        ("source_id", event.source_id.as_str()),
+        ("pipeline_version", event.pipeline_version.as_str()),
+        ("storage_uri", event.storage_uri.as_str()),
+        ("segment_id", event.segment_id.as_str()),
+    ] {
+        if value.is_empty() {
+            return Err(ContractViolation::new(field, "is required"));
+        }
+    }
+    if let Some(event_time) = event.event_time.as_ref() {
+        validate_timestamp("event_time", event_time)?;
+    }
+    validate_required_timestamp("ingest_time", event.ingest_time.as_ref())?;
+    validate_required_timestamp("persisted_at", event.persisted_at.as_ref())?;
+    validate_sha256_metadata(
+        "raw_hash_algorithm",
+        "raw_hash",
+        &event.raw_hash_algorithm,
+        &event.raw_hash,
+    )?;
+    if event.length != event.raw_size {
+        return Err(ContractViolation::new("length", "must equal raw_size"));
+    }
+    Ok(())
 }
 
 /// Validates the identity and timestamp invariants of a normalized derivation.

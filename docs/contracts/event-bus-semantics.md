@@ -29,6 +29,17 @@ cerbero.v1.audit.created
 
 The development NATS configuration may use wildcard subscriptions or stream subjects to implement these boundaries, but wildcard configuration does not redefine the wire subject namespace.
 
+For the raw-preservation handoff, ADR-0009 fixes:
+
+```text
+subject          = cerbero.v1.raw.persisted
+message_type     = RawEventPersisted
+payload_schema   = cerbero.raw_event_persisted.v1
+payload          = RawEventPersisted
+```
+
+`RawEventPersisted` carries immutable acquisition metadata plus the durable Raw Store locator and never retransmits `raw_payload`.
+
 ## ACK policy
 
 A consumer MUST acknowledge a message only after the durable effect required from that consumer has been confirmed.
@@ -39,9 +50,10 @@ For Raw Preservation, the contract sequence is:
 receive
   -> validate envelope
   -> check idempotency
-  -> persist RawEvent
-  -> persist required metadata
-  -> ACK
+  -> persist exact RawEvent bytes
+  -> persist required locator/idempotency metadata and outbox
+  -> durably publish cerbero.v1.raw.persisted
+  -> ACK raw.received
 ```
 
 The inverse ordering is forbidden: acknowledging first and attempting persistence afterward can lose evidence if the consumer fails between those operations.
@@ -80,9 +92,10 @@ exact input bytes
   -> wrap RawEvent in CerberoEnvelope
   -> durable publish to cerbero.v1.raw.received
   -> Raw Preservation validates envelope and idempotency
-  -> persist exact raw evidence and required metadata
+  -> persist exact raw evidence and required locator/idempotency metadata
   -> durable confirmation
-  -> ACK
+  -> durably publish cerbero.v1.raw.persisted
+  -> ACK raw.received
 ```
 
 The scenario is a contract requirement, not a claim that Milestone 1 already implements ingest or Raw Preservation. The executable persistence/ACK path belongs to Milestones 2 and 3. Until then, the contract tests cover the wire objects, exact raw bytes/hash, duplicate message identity, and validation behavior that those components must use.

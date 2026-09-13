@@ -6,6 +6,18 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 3 end-to-end raw-preserver runtime integration across least-privilege NATS identities, durable consumer redelivery, exact filesystem evidence, PostgreSQL published outbox state, and duplicate-safe `raw.persisted` emission.
+- Milestone 3 executable development raw-preserver runtime with a durable `raw-preserver` pull consumer, explicit ACK/retry/isolate transport semantics, least-privilege NATS consumer API permissions, service-specific PostgreSQL login bootstrap, and UUIDv7 runtime identity generation.
+- Milestone 3 real PostgreSQL `MetadataStore` integration coverage with the least-privilege application role, full uint64 locator round-trip, idempotent publication completion, conflict rollback, and forbidden-delete verification.
+- Milestone 3 JetStream `raw.persisted` publisher with stable `Nats-Msg-Id`, ADR-0007 request correlation, strict PubAck validation, duplicate-safe recovery semantics, and a real JetStream integration test.
+- Milestone 3 development filesystem Raw Store adapter with exact-byte SHA-256 verification, durable no-overwrite publication, deterministic locator recovery, and concurrent redelivery convergence.
+- Milestone 3 PostgreSQL `MetadataStore` adapter with atomic raw-locator/idempotency/outbox commits, stable duplicate recovery, conflict detection, uint64-safe locator decoding, and idempotent publication completion.
+- Milestone 3 PostgreSQL raw-preservation schema for immutable raw locators, critical-consumer processed-message idempotency, transactional outbox state, and a least-privilege `cerbero_raw_preserver` role with Compose integration coverage.
+- Milestone 3 concrete `RawEventPersisted` outbox builder producing deterministic `CerberoEnvelope` bytes with stable derived UUIDv7 identity, causation/trace propagation, raw locator metadata, and ADR-0007 request correlation.
+- Canonical `RawEventPersisted` v1 Protobuf source, generated Rust/Go bindings, shared wire fixture, semantic contract checks, and runtime validators for the durable Raw Store handoff.
+- ADR-0009 closing the missing v1 `RawEventPersisted` payload contract and its raw-locator/normalizer handoff semantics without retransmitting authoritative raw bytes.
+- Milestone 3 raw-preserver Go service skeleton and preservation core with exact-byte Raw Store boundary, transport-idempotency state, stable outbox publication recovery, and explicit ACK/retry/isolate dispositions.
+- ADR-0008 defining the standalone Go raw-preserver boundary, transport idempotency, PostgreSQL locator/processed-message ownership, and transactional-outbox publication of `raw.persisted`.
 - Milestone 2 closure gates for backend-neutral ingest metrics, native-sequence gap detection fixtures, and NATS-outage behavior proving NOT READY plus retryable non-acceptance.
 - Milestone 2 syslog adapter skeleton and journald collector contract, preserving source evidence without freezing open syslog framing/UDP policy or journald canonicalization decisions.
 - Milestone 2 DEVELOPMENT runtime composition for JSON/HTTP → staged IngestCore → JetStream, with fail-closed production startup, loopback-only insecure development binding, explicit frontend limits, live/ready health endpoints, graceful shutdown, and full HTTP-to-JetStream integration coverage.

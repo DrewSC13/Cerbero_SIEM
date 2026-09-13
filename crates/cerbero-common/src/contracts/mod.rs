@@ -13,5 +13,6 @@ mod validation;
 
 pub use validation::{
     ContractViolation, sha256_lower_hex, validate_envelope, validate_normalized_event,
-    validate_raw_event, validate_timestamp, validate_transformation, validate_uuid_v7,
+    validate_raw_event, validate_raw_event_persisted, validate_timestamp, validate_transformation,
+    validate_uuid_v7,
 };

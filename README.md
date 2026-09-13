@@ -2,7 +2,7 @@
 
 CERBERO is an open-source, terminal-first, API-first SIEM focused on traceability, reproducibility, auditability, interoperability, and least privilege.
 
-**Repository status:** Milestone 2 — RawEvent + ingest is complete pending merge validation. Milestones 0 and 1 are complete. M2 now provides the common ingest core, JSON/HTTP DEVELOPMENT runtime, durable RawEvent admission to JetStream, syslog/journald source boundaries, source-gap detection fixtures, backend-neutral ingest instrumentation, and NATS-outage contract coverage. Milestone 3 adds raw preservation and durable consumer semantics.
+**Repository status:** Milestones 0–2 are complete. Milestone 3 — NATS + Raw Preservation is in progress. M2 provides the common ingest core, JSON/HTTP DEVELOPMENT runtime, durable RawEvent admission to JetStream, syslog/journald source boundaries, source-gap detection fixtures, backend-neutral ingest instrumentation, and NATS-outage contract coverage. M3 adds the dedicated raw-preserver, idempotent durable-consumer semantics, authoritative Raw Store persistence, PostgreSQL raw locators, `raw.persisted`, retry/DLQ behavior, and preservation observability.
 
 ## Architectural source of truth
 
@@ -100,7 +100,7 @@ The sequence may change only for a documented technical reason that preserves ar
 
 The repository uses Conventional Commits and topic branches. See `CONTRIBUTING.md` and `docs/development/git-workflow.md` before publishing changes.
 
-The GitHub repository is `DrewSC13/Cerbero_SIEM`; `CODEOWNERS` is configured for `@DrewSC13`. `main` is the stable branch and implementation work uses topic branches such as `feature/raw-event-ingest`.
+The GitHub repository is `DrewSC13/Cerbero_SIEM`; `CODEOWNERS` is configured for `@DrewSC13`. `main` is the stable branch and implementation work uses topic branches such as `feature/raw-preservation`.
 
 ## License
 

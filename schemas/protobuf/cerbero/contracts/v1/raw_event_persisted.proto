@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "cerbero/contracts/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// RawEventPersisted references exact evidence after durable Raw Store preservation.
+message RawEventPersisted {
+  string event_id = 1;
+  string tenant_id = 2;
+  string source_id = 3;
+  string sensor_id = 4;
+  google.protobuf.Timestamp event_time = 5;
+  google.protobuf.Timestamp ingest_time = 6;
+  string content_type = 7;
+  string encoding = 8;
+  uint64 raw_size = 9;
+  string raw_hash_algorithm = 10;
+  string raw_hash = 11;
+  string transport = 12;
+  string remote_identity = 13;
+  optional uint64 sequence_number = 14;
+  IntegrityStatus integrity_status = 15;
+  string pipeline_version = 16;
+  string storage_uri = 17;
+  string segment_id = 18;
+  uint64 offset = 19;
+  uint64 length = 20;
+  google.protobuf.Timestamp persisted_at = 21;
+}

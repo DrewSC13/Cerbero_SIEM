@@ -7,6 +7,7 @@ The v1 source set is deliberately split by domain object:
 - `common.proto` — `Producer` and shared enums;
 - `envelope.proto` — `CerberoEnvelope`;
 - `raw_event.proto` — immutable raw evidence contract;
+- `raw_event_persisted.proto` — durable Raw Store locator/metadata handoff for `raw.persisted`;
 - `normalized_event.proto` — OCSF-derived event contract;
 - `transformation.proto` — provenance and execution-mode contract;
 - `error.proto` — `CerberoError` and locked error categories.

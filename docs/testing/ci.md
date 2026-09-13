@@ -45,6 +45,7 @@ contract runtime tests
   -> shared valid/invalid cross-language wire fixtures
   -> UUIDv7 and Protobuf timestamp validation
   -> exact raw SHA-256 / byte-count validation
+  -> RawEventPersisted locator/hash/length validation and shared cross-language wire fixture
   -> duplicate message identity, replay, and parser-failure preservation
 
 Milestone 2 JSON/HTTP component tests (through the Go gates)
