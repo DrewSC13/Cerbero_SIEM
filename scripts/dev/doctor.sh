@@ -71,6 +71,7 @@ check_rust_toolchain
 check_command "go" "go" env GOTOOLCHAIN=local go version
 check_command "python" "python3" python3 --version
 check_command "uv" "uv" uv --version
+check_command "buf" "buf" buf --version
 check_command "docker" "docker" docker --version
 
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then

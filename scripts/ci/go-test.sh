@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-for module in services/*/go.mod; do
+mapfile -t modules < <(find services -type f -name go.mod -print | sort)
+for module in "${modules[@]}"; do
   dir="${module%/go.mod}"
-  echo "go test: $dir"
-  (cd "$dir" && go test ./...)
+  action="test"
+  echo "go ${action}: $dir"
+  (cd "$dir" && go "${action}" ./...)
 done

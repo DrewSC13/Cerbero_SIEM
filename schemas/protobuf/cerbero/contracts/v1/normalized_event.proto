@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "cerbero/contracts/v1/common.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// NormalizedEvent is an OCSF derivation of an immutable RawEvent.
+message NormalizedEvent {
+  string normalized_event_id = 1;
+  string raw_event_id = 2;
+  string tenant_id = 3;
+  google.protobuf.Timestamp normalized_at = 4;
+  string ocsf_version = 5;
+  uint32 class_uid = 6;
+  uint32 category_uid = 7;
+  optional uint32 severity = 8;
+  optional uint32 activity_id = 9;
+  google.protobuf.Struct ocsf_event = 10;
+  string parser_id = 11;
+  string parser_version = 12;
+  NormalizationStatus normalization_status = 13;
+  string normalized_hash_algorithm = 14;
+  string normalized_hash = 15;
+  string pipeline_version = 16;
+}

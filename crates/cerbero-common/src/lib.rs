@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+/// Versioned wire contracts and their validation helpers.
+pub mod contracts;
+
 /// Canonical product name.
 pub const PROJECT_NAME: &str = "CERBERO";
 /// Architectural baseline implemented by this repository bootstrap.

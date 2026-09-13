@@ -1,0 +1,10 @@
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.12
+    out: ../../services/internal/contracts
+    opt:
+      - module=cerbero/services/internal/contracts
+  - remote: buf.build/community/neoeinstein-prost:v0.5.0
+    out: ../../crates/cerbero-common/src/generated
+inputs:
+  - directory: .

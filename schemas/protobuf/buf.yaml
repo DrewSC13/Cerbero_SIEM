@@ -4,6 +4,10 @@ modules:
 lint:
   use:
     - STANDARD
+  ignore_only:
+    ENUM_VALUE_PREFIX:
+      - cerbero/contracts/v1/common.proto
+      - cerbero/contracts/v1/error.proto
 breaking:
   use:
     - FILE

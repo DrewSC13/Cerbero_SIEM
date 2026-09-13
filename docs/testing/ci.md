@@ -2,7 +2,7 @@
 
 CERBERO uses local commands as the source of CI behavior. GitHub Actions invokes the same Make targets rather than hiding correctness checks in hosted-only scripts.
 
-## Milestone 0 gates
+## Repository gates
 
 ```text
 verify
@@ -34,6 +34,19 @@ security-check
   -> forbidden secret-bearing filenames
   -> high-signal committed-secret patterns
 
+contracts
+  -> governed v1 source shape and field-number invariants
+  -> Buf STANDARD lint with the locked IntegrityStatus/ErrorCategory exceptions
+  -> Buf schema build
+  -> pinned Rust/Go binding regeneration with zero Git drift
+
+contract runtime tests
+  -> Rust and Go Protobuf serialization/deserialization
+  -> shared valid/invalid cross-language wire fixtures
+  -> UUIDv7 and Protobuf timestamp validation
+  -> exact raw SHA-256 / byte-count validation
+  -> duplicate message identity, replay, and parser-failure preservation
+
 integration
   -> Compose config
   -> PostgreSQL
@@ -41,13 +54,18 @@ integration
   -> NATS JetStream + v1 stream topology
 ```
 
-The Go build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
+The Go gates discover every `go.mod` recursively below `services/`, including the shared contracts module. The build gate must not write executables into `services/` or otherwise dirty the repository working tree. Build artifacts are written to a temporary directory and deleted when the gate exits.
 
 Infrastructure health checks use bounded retries because PostgreSQL and ClickHouse can transiently reject requests while their fresh development volumes are initialized. PostgreSQL must also be running its final PID 1 `postgres` process before `pg_isready` can satisfy the gate; this excludes the temporary server started by the image entrypoint during `initdb`. NATS readiness is validated with `stream ls`, which simultaneously verifies connectivity, authentication, and JetStream availability without relying on version-specific `server ping` flags.
 
+Buf CLI `1.72.0` is installed in GitHub Actions and is required locally for `make contracts`. Contract generation uses plugin versions pinned in `schemas/protobuf/buf.gen.yaml`. The contract gate regenerates committed bindings and rejects any tracked or untracked drift under the generated output roots.
+
+Rust contract code is checked with Clippy under `-D warnings`; documentation comments must therefore satisfy the active Clippy documentation lints as part of the local and remote CI gate.
+Contract tests must also satisfy the active Clippy style lints; concrete default constructors are used where type inference would otherwise trigger `clippy::default_trait_access`.
+
 ## E2E honesty
 
-Milestone 0 does not claim an analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
+Milestones 0–1 do not claim an analytical E2E pipeline. `make e2e` is only an explicit gate documenting that fact. A real E2E becomes mandatory when enough implemented stages exist to exercise the source-to-TUI path.
 
 ## Future hierarchy
 
@@ -57,4 +75,4 @@ The baseline testing hierarchy remains:
 unit -> contract -> component -> integration -> E2E -> performance/resilience
 ```
 
-Parser fuzzing, contract compatibility, detection fixtures, idempotency/retry, security, resilience, and replay tests are introduced with the owning functionality rather than as empty test names.
+Parser fuzzing, detection fixtures, service-level idempotency/retry, security, resilience, and end-to-end replay tests are introduced with the owning functionality rather than as empty test names. M1 already enforces wire compatibility, duplicate-message identity, and execution-mode replay semantics at the contract layer.

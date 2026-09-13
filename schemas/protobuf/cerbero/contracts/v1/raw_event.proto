@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "cerbero/contracts/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// RawEvent preserves the exact bytes accepted at the ingest boundary and their acquisition metadata.
+message RawEvent {
+  string event_id = 1;
+  string tenant_id = 2;
+  string source_id = 3;
+  string sensor_id = 4;
+  google.protobuf.Timestamp event_time = 5;
+  google.protobuf.Timestamp ingest_time = 6;
+  string content_type = 7;
+  string encoding = 8;
+  bytes raw_payload = 9;
+  uint64 raw_size = 10;
+  string raw_hash_algorithm = 11;
+  string raw_hash = 12;
+  string transport = 13;
+  string remote_identity = 14;
+  optional uint64 sequence_number = 15;
+  IntegrityStatus integrity_status = 16;
+  string pipeline_version = 17;
+}

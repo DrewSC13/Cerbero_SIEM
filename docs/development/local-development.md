@@ -6,6 +6,7 @@
 - Go 1.27.1 (`go.work` and service `go.mod` files)
 - Python 3.14.7 (`.python-version`)
 - uv 0.12.13 (`pyproject.toml` required version)
+- Buf 1.72.0 (Milestone 1 contract generation)
 - GNU Make
 - Docker Engine/compatible runtime with Compose v2 for infrastructure integration
 
@@ -55,3 +56,31 @@ make dev-reset
 ```
 
 `dev-reset` deletes only Docker development volumes and generated files under `var/raw/`; it is not a production operation.
+
+
+## Contract tooling
+
+Milestone 1 requires Buf `1.72.0` for schema validation and generation. Install the pinned CLI without changing the system Go installation:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+GOBIN="$HOME/.local/bin" go install github.com/bufbuild/buf/cmd/buf@v1.72.0
+rehash  # zsh; use `hash -r` in bash if needed
+buf --version
+```
+
+`make doctor` reports the installed Buf version. `make contracts` requires the exact pin. `make contracts-generate` uses the remote plugins pinned in `schemas/protobuf/buf.gen.yaml`.
+
+## Contract runtime dependency metadata
+
+The generated Rust binding is compiled through `cerbero-common` using exact-pinned `prost`, `prost-types`, and `sha2` dependencies. The generated Go binding is its own workspace module at `services/internal/contracts` and pins `google.golang.org/protobuf` to the same version as the code generator.
+
+After changing those dependency pins, regenerate package-manager metadata before using the locked CI gates:
+
+```bash
+cargo generate-lockfile
+(cd services/internal/contracts && go mod tidy)
+go work sync
+```
+
+Ordinary development uses the committed `Cargo.lock` and Go checksum files; dependency resolution is not part of `make ci`.

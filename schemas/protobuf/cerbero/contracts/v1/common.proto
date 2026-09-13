@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// Producer identifies the concrete CERBERO component instance that emitted a message.
+message Producer {
+  string component = 1;
+  string component_version = 2;
+  string instance_id = 3;
+}
+
+// IntegrityStatus describes the evidence-integrity assessment of a RawEvent.
+enum IntegrityStatus {
+  INTEGRITY_STATUS_UNSPECIFIED = 0;
+  INTEGRITY_UNVERIFIED = 1;
+  INTEGRITY_VALID = 2;
+  INTEGRITY_INVALID = 3;
+}
+
+// NormalizationStatus describes the outcome represented by a normalized derivation.
+enum NormalizationStatus {
+  NORMALIZATION_STATUS_UNSPECIFIED = 0;
+  NORMALIZATION_STATUS_SUCCESS = 1;
+  NORMALIZATION_STATUS_PARTIAL = 2;
+  NORMALIZATION_STATUS_FAILED = 3;
+}
+
+// TransformationStatus records whether a transformation completed successfully or failed.
+enum TransformationStatus {
+  TRANSFORMATION_STATUS_UNSPECIFIED = 0;
+  TRANSFORMATION_STATUS_SUCCESS = 1;
+  TRANSFORMATION_STATUS_FAILED = 2;
+}
+
+// ExecutionMode separates real-time processing, replay, and isolated test execution.
+enum ExecutionMode {
+  EXECUTION_MODE_UNSPECIFIED = 0;
+  EXECUTION_MODE_LIVE = 1;
+  EXECUTION_MODE_REPLAY = 2;
+  EXECUTION_MODE_TEST = 3;
+}

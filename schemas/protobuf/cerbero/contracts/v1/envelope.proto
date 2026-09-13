@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "cerbero/contracts/v1/common.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// CerberoEnvelope wraps every message published on the CERBERO event bus.
+message CerberoEnvelope {
+  string contract_version = 1;
+  string message_id = 2;
+  string message_type = 3;
+  string tenant_id = 4;
+  Producer producer = 5;
+  google.protobuf.Timestamp emitted_at = 6;
+  string trace_id = 7;
+  string causation_id = 8;
+  string correlation_id = 9;
+  string payload_schema = 10;
+  google.protobuf.Any payload = 11;
+}
