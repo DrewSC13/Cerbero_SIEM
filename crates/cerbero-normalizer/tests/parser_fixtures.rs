@@ -164,3 +164,34 @@ fn generic_json_input_limit_fails_before_syntax_processing() {
         .unwrap_err();
     assert_eq!(error.code, "CER-PARSE-LIMIT-EXCEEDED");
 }
+
+#[test]
+fn rfc5424_sshd_app_name_does_not_hijack_protocol_parser() {
+    let parsed = parse(
+        b"<34>1 2003-10-11T22:14:15.003Z mymachine sshd 123 ID47 - Accepted publickey for admin",
+        "text/plain",
+    );
+    assert_eq!(parsed.parser_id, SYSLOG_RFC5424_PARSER_ID);
+    assert_eq!(parsed.status, ParsingStatus::Success);
+    assert_eq!(parsed.string_field("app_name"), Some("sshd"));
+    assert_eq!(
+        parsed.string_field("message"),
+        Some("Accepted publickey for admin")
+    );
+}
+
+#[test]
+fn rfc3164_sshd_tag_does_not_hijack_protocol_parser() {
+    let parsed = parse(
+        b"<34>Oct 11 22:14:15 mymachine sshd[123]: Accepted publickey for admin",
+        "text/plain",
+    );
+    assert_eq!(parsed.parser_id, SYSLOG_RFC3164_PARSER_ID);
+    assert_eq!(parsed.status, ParsingStatus::Partial);
+    assert_eq!(parsed.string_field("app_name"), Some("sshd"));
+    assert_eq!(parsed.string_field("procid"), Some("123"));
+    assert_eq!(
+        parsed.string_field("message"),
+        Some("Accepted publickey for admin")
+    );
+}

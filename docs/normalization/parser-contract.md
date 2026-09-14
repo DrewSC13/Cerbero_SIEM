@@ -55,6 +55,8 @@ configured parser
 
 When no parser is configured, every registered parser is probed. Selection first compares tier and then confidence inside that tier. Equal highest tier/confidence is ambiguous and fails closed with `CER-PARSE-NO-MATCH`; registration order is never a silent tie-breaker.
 
+A higher-tier parser must return zero confidence unless it recognizes an input that it can actually parse. Process or application-name hints alone, such as the string `sshd` inside a syslog envelope, are insufficient to preempt a content/protocol parser.
+
 The resulting `ParsedEvent` records candidate parser IDs/versions, tier, confidence, the selected parser, and the selection policy. Source configuration is not yet wired into the DEVELOPMENT runtime, so current runtime calls automatic selection with no configured parser. The registry API already accepts a configured parser ID for the future governed Source configuration path.
 
 ## Timestamp candidates

@@ -422,8 +422,6 @@ impl Parser for LinuxSshdParser {
             && text.contains(" port ")
         {
             100
-        } else if text.contains("sshd") {
-            40
         } else {
             0
         }
