@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 4 execution-domain isolation and non-destructive historical renormalization: governed linux/sshd v2, mode-specific durable consumers, execution-mode publication metadata, N1/N2 coexistence tests, golden OCSF fixtures, and deterministic parser fuzz/property regressions.
 - Milestone 4 normalizer runtime governance with durable-before-Term normalization DLQ records, backend-neutral parse/normalization metrics, deterministic retry jitter, and explicit per-Source timestamp policy with provenance-preserving RFC3164 resolution.
 - Milestone 4 governed parser expansion with typed generic JSON, RFC3164/RFC5424 syslog, journald canonical v1, explainable tiered selection, timestamp-candidate provenance, parser safety limits, panic containment, and golden/malformed fixtures without introducing false OCSF mappings.
 - Milestone 4 durable Rust normalizer runtime for `raw.persisted` → verified Raw Store read → ClickHouse → `normalized.created`, with least-privilege JetStream consumption, stable publication identity, and duplicate-safe integration coverage.

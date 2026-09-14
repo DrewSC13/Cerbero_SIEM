@@ -22,17 +22,18 @@ mod system_id;
 
 pub use canonical::{canonical_json_bytes, canonical_json_hash};
 pub use core::{
-    Clock, FixedClock, FixedIdGenerator, IdGenerator, NormalizationPlan, NormalizerCore,
-    NormalizerCoreConfig, NormalizerError, SystemClock,
+    Clock, DerivationIdentity, FixedClock, FixedIdGenerator, IdGenerator, NormalizationPlan,
+    NormalizerCore, NormalizerCoreConfig, NormalizerError, SystemClock,
 };
 pub use mapping::{
     LINUX_SSH_AUTH_MAPPING_ID, LINUX_SSH_AUTH_MAPPING_VERSION, MappingOutput, MappingRegistry,
     OCSF_VERSION, OcsfMapping, SshAuthenticationMapping,
 };
 pub use parser::{
-    LINUX_SSHD_PARSER_ID, LINUX_SSHD_PARSER_VERSION, LinuxSshdParser, ParseError, ParsedEvent,
-    ParsedValue, Parser, ParserCandidate, ParserInput, ParserLimits, ParserRegistry,
-    ParserSelection, ParserSelectionTrace, ParserTier, ParsingStatus, TimestampCandidate,
+    LINUX_SSHD_PARSER_ID, LINUX_SSHD_PARSER_V2_VERSION, LINUX_SSHD_PARSER_VERSION, LinuxSshdParser,
+    LinuxSshdParserV2, ParseError, ParsedEvent, ParsedValue, Parser, ParserCandidate, ParserInput,
+    ParserLimits, ParserRegistry, ParserSelection, ParserSelectionTrace, ParserTier, ParsingStatus,
+    TimestampCandidate,
 };
 pub use parser_formats::{
     GENERIC_JSON_PARSER_ID, GENERIC_JSON_PARSER_VERSION, GenericJsonParser,
@@ -44,10 +45,11 @@ pub use parser_formats::{
 pub use clickhouse::{ClickHouseStore, StoredNormalization};
 pub use dead_letter::{NORMALIZATION_DLQ_SCHEMA, NormalizationDeadLetter, unix_time_millis};
 pub use eventbus::{
-    ANALYTICS_STREAM_NAME, DLQ_SCHEMA_HEADER, DLQ_STREAM_NAME, EventBus, IncomingRawPersisted,
-    NORMALIZATION_DLQ_SUBJECT, NORMALIZED_CREATED_SUBJECT, NORMALIZER_CONSUMER_NAME,
-    RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, REQUEST_ID_HEADER, decode_raw_persisted, retry_delay,
-    retry_delay_with_jitter,
+    ANALYTICS_STREAM_NAME, DLQ_SCHEMA_HEADER, DLQ_STREAM_NAME, EXECUTION_MODE_HEADER, EventBus,
+    IncomingRawPersisted, NORMALIZATION_DLQ_SUBJECT, NORMALIZED_CREATED_SUBJECT,
+    NORMALIZER_CONSUMER_NAME, NORMALIZER_REPLAY_CONSUMER_NAME, NORMALIZER_TEST_CONSUMER_NAME,
+    RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, REQUEST_ID_HEADER, decode_raw_persisted,
+    normalizer_consumer_name, retry_delay, retry_delay_with_jitter,
 };
 pub use metrics::{
     DLQ_NORMALIZATION_TOTAL, EVENTS_NORMALIZED_TOTAL, EVENTS_PARSED_TOTAL, MAPPING_BY_ID,

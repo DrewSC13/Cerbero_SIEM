@@ -15,6 +15,7 @@ pub struct RuntimeConfig {
     pub instance_id: String,
     pub pipeline_version: String,
     pub execution_mode: ExecutionMode,
+    pub linux_sshd_parser_version: String,
     pub source_time_policies: SourceTimePolicyRegistry,
     pub raw_store_path: PathBuf,
     pub clickhouse_url: String,
@@ -56,6 +57,7 @@ impl RuntimeConfig {
             instance_id: required("CERBERO_NORMALIZER_INSTANCE_ID")?,
             pipeline_version: required("CERBERO_NORMALIZER_PIPELINE_VERSION")?,
             execution_mode,
+            linux_sshd_parser_version: required("CERBERO_NORMALIZER_LINUX_SSHD_PARSER_VERSION")?,
             source_time_policies: SourceTimePolicyRegistry::parse_spec(
                 &env::var("CERBERO_NORMALIZER_SOURCE_TIME_OFFSETS").unwrap_or_default(),
             )
@@ -100,6 +102,11 @@ impl RuntimeConfig {
         if self.execution_mode == ExecutionMode::Unspecified {
             return Err(config_error(
                 "normalizer execution mode must not be unspecified",
+            ));
+        }
+        if !matches!(self.linux_sshd_parser_version.as_str(), "1" | "2") {
+            return Err(config_error(
+                "CERBERO_NORMALIZER_LINUX_SSHD_PARSER_VERSION must be 1 or 2",
             ));
         }
         if !simple_identifier(&self.clickhouse_database) {
@@ -170,6 +177,7 @@ mod tests {
             instance_id: "normalizer-1".to_string(),
             pipeline_version: "normalizer-v1".to_string(),
             execution_mode: ExecutionMode::Live,
+            linux_sshd_parser_version: "1".to_string(),
             source_time_policies: SourceTimePolicyRegistry::default(),
             raw_store_path: PathBuf::from("var/raw"),
             clickhouse_url: "http://127.0.0.1:8123".to_string(),
@@ -178,6 +186,29 @@ mod tests {
             clickhouse_password: "secret".to_string(),
             retry_min_delay: Duration::from_secs(5),
             retry_max_delay: Duration::from_secs(1),
+        };
+        assert_eq!(config.validate().unwrap_err().code, "CER-NORM-CONFIG");
+    }
+
+    #[test]
+    fn validate_rejects_unknown_governed_sshd_parser_version() {
+        let config = RuntimeConfig {
+            nats_url: "nats://127.0.0.1:4222".to_string(),
+            nats_user: "u".to_string(),
+            nats_password: "p".to_string(),
+            component_version: "dev".to_string(),
+            instance_id: "normalizer-1".to_string(),
+            pipeline_version: "normalizer-v1".to_string(),
+            execution_mode: ExecutionMode::Replay,
+            linux_sshd_parser_version: "3".to_string(),
+            source_time_policies: SourceTimePolicyRegistry::default(),
+            raw_store_path: PathBuf::from("var/raw"),
+            clickhouse_url: "http://127.0.0.1:8123".to_string(),
+            clickhouse_database: "cerbero".to_string(),
+            clickhouse_user: "normalizer".to_string(),
+            clickhouse_password: "secret".to_string(),
+            retry_min_delay: Duration::from_secs(1),
+            retry_max_delay: Duration::from_secs(5),
         };
         assert_eq!(config.validate().unwrap_err().code, "CER-NORM-CONFIG");
     }

@@ -8,7 +8,9 @@ use tokio::sync::watch;
 
 use crate::clickhouse::{ClickHouseStore, StoredNormalization};
 use crate::dead_letter::{NormalizationDeadLetter, unix_time_millis};
-use crate::eventbus::{EventBus, decode_raw_persisted, retry_delay_with_jitter};
+use crate::eventbus::{
+    EventBus, decode_raw_persisted, normalizer_consumer_name, retry_delay_with_jitter,
+};
 use crate::metrics::{MemoryNormalizerMetrics, NormalizerMetrics};
 use crate::raw_store::FilesystemRawReader;
 use crate::runtime_config::RuntimeConfig;
@@ -42,17 +44,18 @@ pub async fn run_with_metrics(
         config.instance_id.clone(),
     )
     .await?;
-    let consumer = bus.consumer().await?;
+    let consumer = bus.consumer(config.execution_mode).await?;
     let mut messages = consumer.messages().await.map_err(|error| NormalizerError {
         code: "CER-NORM-NATS-CONSUME",
         message: error.to_string(),
         retryable: true,
     })?;
-    let mut core = NormalizerCore::new(
+    let mut core = NormalizerCore::new_with_linux_sshd_version(
         NormalizerCoreConfig {
             pipeline_version: config.pipeline_version.clone(),
             execution_mode: config.execution_mode,
         },
+        &config.linux_sshd_parser_version,
         Box::new(SystemClock),
         Box::new(SystemIdGenerator),
     )?;
@@ -73,9 +76,9 @@ pub async fn run_with_metrics(
         tokio::select! {
             changed = shutdown.changed() => {
                 match changed {
-                    Ok(()) if *shutdown.borrow() => return Ok(()),
+                    Ok(()) if *shutdown.borrow() => return processor.clean_shutdown().await,
                     Ok(()) => {},
-                    Err(_) => return Ok(()),
+                    Err(_) => return processor.clean_shutdown().await,
                 }
             }
             next = messages.next() => {
@@ -108,6 +111,12 @@ struct RuntimeProcessor {
 }
 
 impl RuntimeProcessor {
+    async fn clean_shutdown(&mut self) -> Result<(), NormalizerError> {
+        self.bus
+            .delete_execution_consumer(self.config.execution_mode)
+            .await
+    }
+
     async fn handle_message(
         &mut self,
         message: &async_nats::jetstream::Message,
@@ -172,9 +181,10 @@ impl RuntimeProcessor {
             .entry(failure_key.to_string())
             .or_insert_with(unix_time_millis);
         let parser_identity = best_effort_parser_identity(&self.raw_reader, &self.core, message);
+        let consumer_name = normalizer_consumer_name(self.config.execution_mode)?;
         let dead_letter = NormalizationDeadLetter::from_message(
             message,
-            crate::NORMALIZER_CONSUMER_NAME,
+            consumer_name,
             error,
             parser_identity
                 .as_ref()
@@ -230,16 +240,38 @@ async fn process_message(
     message: &async_nats::jetstream::Message,
 ) -> Result<(), NormalizerError> {
     let incoming = decode_raw_persisted(message)?;
-    let logical_key = core.logical_key(&incoming.persisted);
-    if let Some(existing) = store.find_by_logical_key(&logical_key).await? {
-        validate_existing(&existing, &incoming.persisted.event_id, &logical_key)?;
+    let raw = raw_reader.read(&incoming.persisted)?;
+    let identity = match core.derivation_identity(&incoming.persisted, &raw) {
+        Ok(identity) => identity,
+        Err(preflight_error) => {
+            return match core.normalize(&incoming.envelope, &incoming.persisted, &raw) {
+                Err(error) => Err(error),
+                Ok(_) => Err(NormalizerError {
+                    code: "CER-NORM-DERIVATION-IDENTITY",
+                    message: format!(
+                        "derivation preflight failed but normalization succeeded: {preflight_error}"
+                    ),
+                    retryable: false,
+                }),
+            };
+        }
+    };
+
+    if let Some(existing) = store.find_by_logical_key(&identity.logical_key).await? {
+        validate_existing_identity(&existing, &incoming.persisted.event_id, &identity)?;
         return bus
             .publish_normalized(&existing, incoming.request_id.as_deref())
             .await;
     }
 
-    let raw = raw_reader.read(&incoming.persisted)?;
     let plan = core.normalize(&incoming.envelope, &incoming.persisted, &raw)?;
+    if plan.logical_key != identity.logical_key {
+        return Err(NormalizerError {
+            code: "CER-NORM-DERIVATION-IDENTITY",
+            message: "normalization plan identity differs from deterministic preflight".to_string(),
+            retryable: false,
+        });
+    }
     let ingest_time = incoming
         .persisted
         .ingest_time
@@ -259,7 +291,7 @@ async fn process_message(
         config.instance_id.clone(),
     )?;
     let stored = store.insert_and_read_back(&candidate).await?;
-    validate_existing(&stored, &incoming.persisted.event_id, &logical_key)?;
+    validate_existing_plan(&stored, &plan)?;
     bus.publish_normalized(&stored, incoming.request_id.as_deref())
         .await
 }
@@ -281,31 +313,66 @@ fn delivery_identity(message: &async_nats::jetstream::Message) -> String {
     )
 }
 
-fn validate_existing(
+fn validate_existing_identity(
     row: &StoredNormalization,
     raw_event_id: &str,
-    logical_key: &str,
+    identity: &crate::DerivationIdentity,
 ) -> Result<(), NormalizerError> {
-    if row.logical_key != logical_key || row.raw_event_id != raw_event_id {
-        return Err(NormalizerError {
+    let matches = row.logical_key == identity.logical_key
+        && row.raw_event_id == raw_event_id
+        && row.ocsf_version == identity.ocsf_version
+        && row.pipeline_version == identity.pipeline_version
+        && row.parser_id == identity.parser_id
+        && row.parser_version == identity.parser_version
+        && row.mapping_id == identity.mapping_id
+        && row.mapping_version == identity.mapping_version
+        && row.configuration_hash == identity.configuration_hash
+        && row.execution_mode == identity.execution_mode as i32;
+    if matches {
+        Ok(())
+    } else {
+        Err(NormalizerError {
             code: "CER-NORM-IDEMPOTENCY-CONFLICT",
-            message: "stored logical normalization conflicts with incoming RawEvent".to_string(),
-            retryable: false,
-        });
-    }
-    if row.normalized_hash_algorithm != "sha256"
-        || row.ocsf_version != crate::OCSF_VERSION
-        || row.parser_id != crate::LINUX_SSHD_PARSER_ID
-        || row.parser_version != crate::LINUX_SSHD_PARSER_VERSION
-        || row.mapping_id != crate::LINUX_SSH_AUTH_MAPPING_ID
-        || row.mapping_version != crate::LINUX_SSH_AUTH_MAPPING_VERSION
-    {
-        return Err(NormalizerError {
-            code: "CER-NORM-IDEMPOTENCY-CONFLICT",
-            message: "stored logical normalization metadata differs from governed vertical"
+            message: "stored logical normalization metadata conflicts with derivation identity"
                 .to_string(),
             retryable: false,
-        });
+        })
     }
-    Ok(())
+}
+
+fn validate_existing_plan(
+    row: &StoredNormalization,
+    plan: &crate::NormalizationPlan,
+) -> Result<(), NormalizerError> {
+    let execution_mode =
+        cerbero_common::contracts::v1::ExecutionMode::try_from(plan.transformation.execution_mode)
+            .map_err(|_| NormalizerError {
+                code: "CER-NORM-IDEMPOTENCY-CONFLICT",
+                message: "normalization plan execution_mode is invalid".to_string(),
+                retryable: false,
+            })?;
+    let identity = crate::DerivationIdentity {
+        logical_key: plan.logical_key.clone(),
+        parser_id: plan.normalized_event.parser_id.clone(),
+        parser_version: plan.normalized_event.parser_version.clone(),
+        mapping_id: plan.mapping_id.clone(),
+        mapping_version: plan.mapping_version.clone(),
+        ocsf_version: plan.normalized_event.ocsf_version.clone(),
+        pipeline_version: plan.normalized_event.pipeline_version.clone(),
+        configuration_hash: plan.transformation.configuration_hash.clone(),
+        execution_mode,
+    };
+    validate_existing_identity(row, &plan.normalized_event.raw_event_id, &identity)?;
+    if row.normalized_hash_algorithm == plan.normalized_event.normalized_hash_algorithm
+        && row.normalized_hash == plan.normalized_event.normalized_hash
+    {
+        Ok(())
+    } else {
+        Err(NormalizerError {
+            code: "CER-NORM-IDEMPOTENCY-CONFLICT",
+            message: "stored normalization payload metadata conflicts with normalization plan"
+                .to_string(),
+            retryable: false,
+        })
+    }
 }

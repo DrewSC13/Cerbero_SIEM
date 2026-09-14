@@ -1,0 +1,1 @@
+<999>Oct 11 22:14:15 host sshd[1]: invalid-pri

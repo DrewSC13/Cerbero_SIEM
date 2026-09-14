@@ -9,13 +9,15 @@ use cerbero_common::contracts::v1::{
     CerberoEnvelope, ExecutionMode, IntegrityStatus, Producer, RawEventPersisted,
 };
 use cerbero_normalizer::{
-    ANALYTICS_STREAM_NAME, DLQ_STREAM_NAME, GENERIC_JSON_PARSER_ID, NORMALIZATION_DLQ_SUBJECT,
-    NORMALIZED_CREATED_SUBJECT, NORMALIZER_CONSUMER_NAME, NormalizationDeadLetter,
+    ANALYTICS_STREAM_NAME, DLQ_STREAM_NAME, EXECUTION_MODE_HEADER, GENERIC_JSON_PARSER_ID,
+    NORMALIZATION_DLQ_SUBJECT, NORMALIZED_CREATED_SUBJECT, NORMALIZER_CONSUMER_NAME,
+    NORMALIZER_REPLAY_CONSUMER_NAME, NORMALIZER_TEST_CONSUMER_NAME, NormalizationDeadLetter,
     RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, RuntimeConfig, SourceTimePolicyRegistry,
 };
 use futures_util::StreamExt;
 use prost::Message as _;
 use prost_types::{Any, Timestamp};
+use serde::Deserialize;
 use tempfile::TempDir;
 use tokio::sync::watch;
 use uuid::Uuid;
@@ -43,6 +45,7 @@ async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
         instance_id: format!("normalizer-integration-{}", Uuid::now_v7()),
         pipeline_version: "normalizer-v1-integration".to_string(),
         execution_mode: ExecutionMode::Live,
+        linux_sshd_parser_version: "1".to_string(),
         source_time_policies: SourceTimePolicyRegistry::default(),
         raw_store_path: root.path().to_path_buf(),
         clickhouse_url: format!(
@@ -190,6 +193,250 @@ async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
     runtime_result.expect("normalizer runtime failed");
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct HistoryRow {
+    logical_key: String,
+    normalized_event_id: String,
+    parser_version: String,
+    execution_mode: i32,
+    normalized_hash: String,
+    configuration_hash: String,
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires development NATS JetStream and ClickHouse"]
+async fn development_execution_modes_preserve_historical_renormalization() {
+    let root = TempDir::new().expect("temp Raw Store");
+    let raw = b"Failed password for invalid user admin from 10.0.0.8 port 50341 ssh2";
+    let event_id = Uuid::now_v7().to_string();
+    let raw_path = root
+        .path()
+        .join(format!("tenant-dev/2026/09/13/22/{event_id}/raw.bin"));
+    fs::create_dir_all(raw_path.parent().unwrap()).unwrap();
+    fs::write(&raw_path, raw).unwrap();
+
+    let nats_url = env("CERBERO_NATS_URL");
+    isolate_test_streams(&nats_url).await;
+
+    let raw_preserver = async_nats::ConnectOptions::with_user_and_password(
+        env("NATS_RAW_PRESERVER_USER"),
+        env("NATS_RAW_PRESERVER_PASSWORD"),
+    )
+    .name("normalizer-history-producer")
+    .connect(&nats_url)
+    .await
+    .unwrap();
+    let raw_js = async_nats::jetstream::new(raw_preserver);
+
+    let detection = async_nats::ConnectOptions::with_user_and_password(
+        env("NATS_DETECTION_USER"),
+        env("NATS_DETECTION_PASSWORD"),
+    )
+    .name("normalizer-history-observer")
+    .connect(&nats_url)
+    .await
+    .unwrap();
+    let mut normalized = detection
+        .subscribe(NORMALIZED_CREATED_SUBJECT)
+        .await
+        .unwrap();
+    detection.flush().await.unwrap();
+
+    let envelope = raw_persisted_envelope(&event_id, raw);
+    let wire = envelope.encode_to_vec();
+
+    let live_config = mode_config(
+        root.path(),
+        &nats_url,
+        ExecutionMode::Live,
+        "1",
+        "history-live",
+    );
+    let (live_shutdown_tx, live_shutdown_rx) = watch::channel(false);
+    let live_runtime = tokio::spawn(cerbero_normalizer::run(
+        live_config.clone(),
+        live_shutdown_rx,
+    ));
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    let live_sequence = publish_raw_persisted(&raw_js, &wire, Uuid::now_v7().to_string()).await;
+    let live_message = next_normalized(&mut normalized).await;
+    assert_execution_header(&live_message, "LIVE");
+    wait_for_consumer_ack(&nats_url, NORMALIZER_CONSUMER_NAME, live_sequence).await;
+    stop_runtime(live_shutdown_tx, live_runtime).await;
+
+    let live_rows = clickhouse_history(&live_config, &event_id).await;
+    assert_eq!(live_rows.len(), 1);
+    let n1 = live_rows[0].clone();
+    assert_eq!(n1.parser_version, "1");
+    assert_eq!(n1.execution_mode, ExecutionMode::Live as i32);
+
+    let replay_config = mode_config(
+        root.path(),
+        &nats_url,
+        ExecutionMode::Replay,
+        "2",
+        "history-replay-v2",
+    );
+    let (replay_shutdown_tx, replay_shutdown_rx) = watch::channel(false);
+    let replay_runtime = tokio::spawn(cerbero_normalizer::run(
+        replay_config.clone(),
+        replay_shutdown_rx,
+    ));
+    let replay_message = next_normalized(&mut normalized).await;
+    assert_execution_header(&replay_message, "REPLAY");
+    stop_runtime(replay_shutdown_tx, replay_runtime).await;
+
+    let replay_rows = clickhouse_history(&replay_config, &event_id).await;
+    assert_eq!(replay_rows.len(), 2);
+    let n1_after_replay = replay_rows
+        .iter()
+        .find(|row| row.normalized_event_id == n1.normalized_event_id)
+        .expect("N1 must remain after parser-v2 replay");
+    assert_eq!(n1_after_replay.logical_key, n1.logical_key);
+    assert_eq!(n1_after_replay.normalized_hash, n1.normalized_hash);
+    assert_eq!(n1_after_replay.configuration_hash, n1.configuration_hash);
+    let n2 = replay_rows
+        .iter()
+        .find(|row| row.execution_mode == ExecutionMode::Replay as i32)
+        .expect("REPLAY N2 row");
+    assert_eq!(n2.parser_version, "2");
+    assert_ne!(n2.logical_key, n1.logical_key);
+    assert_ne!(n2.normalized_event_id, n1.normalized_event_id);
+    assert_ne!(n2.normalized_hash, n1.normalized_hash);
+
+    let test_config = mode_config(
+        root.path(),
+        &nats_url,
+        ExecutionMode::Test,
+        "1",
+        "history-test-v1",
+    );
+    let (test_shutdown_tx, test_shutdown_rx) = watch::channel(false);
+    let test_runtime = tokio::spawn(cerbero_normalizer::run(
+        test_config.clone(),
+        test_shutdown_rx,
+    ));
+    let test_message = next_normalized(&mut normalized).await;
+    assert_execution_header(&test_message, "TEST");
+    stop_runtime(test_shutdown_tx, test_runtime).await;
+
+    let final_rows = clickhouse_history(&test_config, &event_id).await;
+    assert_eq!(final_rows.len(), 3);
+    assert!(final_rows.iter().any(|row| {
+        row.normalized_event_id == n1.normalized_event_id
+            && row.normalized_hash == n1.normalized_hash
+            && row.execution_mode == ExecutionMode::Live as i32
+    }));
+    assert!(final_rows.iter().any(|row| {
+        row.normalized_event_id == n2.normalized_event_id
+            && row.execution_mode == ExecutionMode::Replay as i32
+            && row.parser_version == "2"
+    }));
+    let test_row = final_rows
+        .iter()
+        .find(|row| row.execution_mode == ExecutionMode::Test as i32)
+        .expect("TEST historical row");
+    assert_eq!(test_row.parser_version, "1");
+    assert_ne!(test_row.logical_key, n1.logical_key);
+
+    assert!(consumer_exists(&nats_url, NORMALIZER_CONSUMER_NAME).await);
+    assert!(!consumer_exists(&nats_url, NORMALIZER_REPLAY_CONSUMER_NAME).await);
+    assert!(!consumer_exists(&nats_url, NORMALIZER_TEST_CONSUMER_NAME).await);
+}
+
+fn mode_config(
+    raw_store_path: &std::path::Path,
+    nats_url: &str,
+    execution_mode: ExecutionMode,
+    parser_version: &str,
+    suffix: &str,
+) -> RuntimeConfig {
+    RuntimeConfig {
+        nats_url: nats_url.to_string(),
+        nats_user: env("NATS_NORMALIZER_USER"),
+        nats_password: env("NATS_NORMALIZER_PASSWORD"),
+        component_version: "0.1.0-integration".to_string(),
+        instance_id: format!("normalizer-{suffix}-{}", Uuid::now_v7()),
+        pipeline_version: "normalizer-v1-integration".to_string(),
+        execution_mode,
+        linux_sshd_parser_version: parser_version.to_string(),
+        source_time_policies: SourceTimePolicyRegistry::default(),
+        raw_store_path: raw_store_path.to_path_buf(),
+        clickhouse_url: format!(
+            "http://{}:{}",
+            env("CLICKHOUSE_HOST"),
+            env("CLICKHOUSE_HTTP_PORT")
+        ),
+        clickhouse_database: env("CLICKHOUSE_DB"),
+        clickhouse_user: env("CLICKHOUSE_NORMALIZER_USER"),
+        clickhouse_password: env("CLICKHOUSE_NORMALIZER_PASSWORD"),
+        retry_min_delay: Duration::from_millis(100),
+        retry_max_delay: Duration::from_millis(250),
+    }
+    .validate()
+    .unwrap()
+}
+
+async fn next_normalized(subscription: &mut async_nats::Subscriber) -> async_nats::Message {
+    tokio::time::timeout(Duration::from_secs(5), subscription.next())
+        .await
+        .expect("normalized.created timeout")
+        .expect("normalized.created subscription ended")
+}
+
+fn assert_execution_header(message: &async_nats::Message, expected: &str) {
+    let actual = message
+        .headers
+        .as_ref()
+        .and_then(|headers| headers.get(EXECUTION_MODE_HEADER))
+        .map(async_nats::HeaderValue::as_str);
+    assert_eq!(actual, Some(expected));
+}
+
+async fn stop_runtime(
+    shutdown_tx: watch::Sender<bool>,
+    runtime: tokio::task::JoinHandle<Result<(), cerbero_normalizer::NormalizerError>>,
+) {
+    shutdown_tx.send(true).unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(5), runtime)
+        .await
+        .expect("runtime shutdown timeout")
+        .expect("runtime task join failed");
+    result.expect("normalizer runtime failed");
+}
+
+async fn consumer_exists(nats_url: &str, consumer_name: &str) -> bool {
+    let jetstream = admin_jetstream(nats_url, "normalizer-consumer-existence").await;
+    let stream = jetstream.get_stream(RAW_STREAM_NAME).await.unwrap();
+    let result: Result<async_nats::jetstream::consumer::PullConsumer, _> =
+        stream.get_consumer(consumer_name).await;
+    result.is_ok()
+}
+
+async fn clickhouse_history(config: &RuntimeConfig, raw_event_id: &str) -> Vec<HistoryRow> {
+    let query = format!(
+        "SELECT logical_key, normalized_event_id, parser_version, execution_mode, normalized_hash, configuration_hash \
+         FROM {}.normalized_events WHERE raw_event_id = '{}' ORDER BY created_at, normalized_event_id FORMAT JSONEachRow",
+        config.clickhouse_database, raw_event_id
+    );
+    let response = reqwest::Client::new()
+        .get(&config.clickhouse_url)
+        .basic_auth(&config.clickhouse_user, Some(&config.clickhouse_password))
+        .query(&[("query", query)])
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+    response
+        .text()
+        .await
+        .unwrap()
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect()
+}
+
 async fn admin_jetstream(nats_url: &str, name: &str) -> async_nats::jetstream::Context {
     let admin = async_nats::ConnectOptions::with_user_and_password(
         env("NATS_ADMIN_USER"),
@@ -212,6 +459,13 @@ async fn isolate_test_streams(nats_url: &str) {
         .await
         .unwrap();
 
+    let _ = raw_stream
+        .delete_consumer(NORMALIZER_REPLAY_CONSUMER_NAME)
+        .await;
+    let _ = raw_stream
+        .delete_consumer(NORMALIZER_TEST_CONSUMER_NAME)
+        .await;
+
     let analytics_stream = jetstream.get_stream(ANALYTICS_STREAM_NAME).await.unwrap();
     analytics_stream
         .purge()
@@ -228,12 +482,14 @@ async fn isolate_test_streams(nats_url: &str) {
 }
 
 async fn wait_for_normalizer_ack(nats_url: &str, raw_sequence: u64) {
+    wait_for_consumer_ack(nats_url, NORMALIZER_CONSUMER_NAME, raw_sequence).await;
+}
+
+async fn wait_for_consumer_ack(nats_url: &str, consumer_name: &str, raw_sequence: u64) {
     let jetstream = admin_jetstream(nats_url, "normalizer-integration-ack-observer").await;
     let raw_stream = jetstream.get_stream(RAW_STREAM_NAME).await.unwrap();
-    let consumer: async_nats::jetstream::consumer::PullConsumer = raw_stream
-        .get_consumer(NORMALIZER_CONSUMER_NAME)
-        .await
-        .unwrap();
+    let consumer: async_nats::jetstream::consumer::PullConsumer =
+        raw_stream.get_consumer(consumer_name).await.unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -245,7 +501,7 @@ async fn wait_for_normalizer_ack(nats_url: &str, raw_sequence: u64) {
         }
     })
     .await
-    .expect("normalizer did not ACK duplicate raw.persisted");
+    .expect("normalizer did not ACK raw.persisted");
 }
 
 async fn normalized_subject_count(nats_url: &str) -> usize {

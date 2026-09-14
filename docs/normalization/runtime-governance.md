@@ -34,11 +34,14 @@ source-a=-04:00,source-b=+05:30
 
 The normalizer may resolve an RFC3164 candidate only when the selected parser is `cerbero.parser.syslog.rfc3164` and the matching `source_id` has configured policy. Candidate precision text alone never activates the RFC3164 policy. The persisted raw handoff is not mutated. Changing the policy changes effective configuration hash and derivation identity.
 
+## Execution domains
+
+ADR-0015 governs LIVE/REPLAY/TEST runtime isolation. The canonical `normalized.created` subject is unchanged; mode is exposed through `Cerbero-Execution-Mode`, stored Transformation provenance, and distinct durable consumers.
+
 ## Still open in Milestone 4
 
 - persistent retry-budget state across process restarts;
 - automatic DLQ reprocessing;
 - IANA/DST-aware Source timezone policies;
-- REPLAY/TEST runtime isolation;
 - historical parser-v2 renormalization;
 - fuzz-target expansion.

@@ -6,7 +6,7 @@ use async_nats::jetstream::consumer::{AckPolicy, PullConsumer, pull};
 use prost::Message as _;
 use prost_types::Any;
 
-use cerbero_common::contracts::v1::{CerberoEnvelope, Producer, RawEventPersisted};
+use cerbero_common::contracts::v1::{CerberoEnvelope, ExecutionMode, Producer, RawEventPersisted};
 use cerbero_common::contracts::{
     sha256_lower_hex, validate_envelope, validate_raw_event_persisted,
 };
@@ -21,7 +21,10 @@ pub const NORMALIZED_CREATED_SUBJECT: &str = "cerbero.v1.normalized.created";
 pub const NORMALIZATION_DLQ_SUBJECT: &str = "cerbero.v1.dlq.normalization";
 pub const DLQ_SCHEMA_HEADER: &str = "Cerbero-DLQ-Schema";
 pub const NORMALIZER_CONSUMER_NAME: &str = "normalizer";
+pub const NORMALIZER_REPLAY_CONSUMER_NAME: &str = "normalizer-replay";
+pub const NORMALIZER_TEST_CONSUMER_NAME: &str = "normalizer-test";
 pub const REQUEST_ID_HEADER: &str = "Cerbero-Request-Id";
+pub const EXECUTION_MODE_HEADER: &str = "Cerbero-Execution-Mode";
 const NATS_MESSAGE_ID_HEADER: &str = "Nats-Msg-Id";
 
 #[derive(Clone)]
@@ -52,7 +55,11 @@ impl EventBus {
         })
     }
 
-    pub async fn consumer(&self) -> Result<PullConsumer, NormalizerError> {
+    pub async fn consumer(
+        &self,
+        execution_mode: ExecutionMode,
+    ) -> Result<PullConsumer, NormalizerError> {
+        let consumer_name = normalizer_consumer_name(execution_mode)?;
         let stream = self
             .jetstream
             .get_stream(RAW_STREAM_NAME)
@@ -60,9 +67,9 @@ impl EventBus {
             .map_err(transport_error)?;
         stream
             .get_or_create_consumer(
-                NORMALIZER_CONSUMER_NAME,
+                consumer_name,
                 pull::Config {
-                    durable_name: Some(NORMALIZER_CONSUMER_NAME.to_string()),
+                    durable_name: Some(consumer_name.to_string()),
                     ack_policy: AckPolicy::Explicit,
                     filter_subject: RAW_PERSISTED_SUBJECT.to_string(),
                     max_ack_pending: 1,
@@ -71,6 +78,26 @@ impl EventBus {
             )
             .await
             .map_err(transport_error)
+    }
+
+    pub async fn delete_execution_consumer(
+        &self,
+        execution_mode: ExecutionMode,
+    ) -> Result<(), NormalizerError> {
+        if execution_mode == ExecutionMode::Live {
+            return Ok(());
+        }
+        let consumer_name = normalizer_consumer_name(execution_mode)?;
+        let stream = self
+            .jetstream
+            .get_stream(RAW_STREAM_NAME)
+            .await
+            .map_err(transport_error)?;
+        stream
+            .delete_consumer(consumer_name)
+            .await
+            .map_err(transport_error)?;
+        Ok(())
     }
 
     pub async fn publish_normalized(
@@ -113,6 +140,15 @@ impl EventBus {
         let bytes = envelope.encode_to_vec();
         let mut headers = HeaderMap::new();
         headers.insert(NATS_MESSAGE_ID_HEADER, row.publication_message_id.clone());
+        let execution_mode = row.execution_mode().ok_or_else(|| NormalizerError {
+            code: "CER-NORM-PUBLISH-CONTRACT",
+            message: "stored normalization execution_mode is invalid".to_string(),
+            retryable: false,
+        })?;
+        headers.insert(
+            EXECUTION_MODE_HEADER,
+            execution_mode_header_value(execution_mode)?.to_string(),
+        );
         if let Some(request_id) = request_id.filter(|value| !value.is_empty()) {
             headers.insert(REQUEST_ID_HEADER, request_id.to_string());
         }
@@ -271,6 +307,36 @@ pub fn retry_delay_with_jitter(
     Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
         .max(min)
         .min(max)
+}
+
+fn execution_mode_header_value(
+    execution_mode: ExecutionMode,
+) -> Result<&'static str, NormalizerError> {
+    match execution_mode {
+        ExecutionMode::Live => Ok("LIVE"),
+        ExecutionMode::Replay => Ok("REPLAY"),
+        ExecutionMode::Test => Ok("TEST"),
+        ExecutionMode::Unspecified => Err(NormalizerError {
+            code: "CER-NORM-EXECUTION-MODE",
+            message: "execution mode must be LIVE, REPLAY, or TEST".to_string(),
+            retryable: false,
+        }),
+    }
+}
+
+pub fn normalizer_consumer_name(
+    execution_mode: ExecutionMode,
+) -> Result<&'static str, NormalizerError> {
+    match execution_mode {
+        ExecutionMode::Live => Ok(NORMALIZER_CONSUMER_NAME),
+        ExecutionMode::Replay => Ok(NORMALIZER_REPLAY_CONSUMER_NAME),
+        ExecutionMode::Test => Ok(NORMALIZER_TEST_CONSUMER_NAME),
+        ExecutionMode::Unspecified => Err(NormalizerError {
+            code: "CER-NORM-EXECUTION-MODE",
+            message: "execution mode must be LIVE, REPLAY, or TEST".to_string(),
+            retryable: false,
+        }),
+    }
 }
 
 fn transport_error(error: impl std::fmt::Display) -> NormalizerError {
