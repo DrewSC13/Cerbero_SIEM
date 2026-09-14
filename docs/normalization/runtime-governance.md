@@ -43,5 +43,4 @@ ADR-0015 governs LIVE/REPLAY/TEST runtime isolation. The canonical `normalized.c
 - persistent retry-budget state across process restarts;
 - automatic DLQ reprocessing;
 - IANA/DST-aware Source timezone policies;
-- historical parser-v2 renormalization;
 - fuzz-target expansion.
