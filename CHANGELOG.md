@@ -6,6 +6,8 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 4 durable Rust normalizer runtime for `raw.persisted` → verified Raw Store read → ClickHouse → `normalized.created`, with least-privilege JetStream consumption, stable publication identity, and duplicate-safe integration coverage.
+- Milestone 4 governed first OCSF normalization vertical with versioned `linux/sshd@1` parsing, `linux.ssh.authentication@1` mapping, pinned OCSF 1.9.0 semantics, canonical normalized hashing, provenance, and explicit LIVE/REPLAY/TEST derivation identity.
 - Milestone 3 end-to-end raw-preserver runtime integration across least-privilege NATS identities, durable consumer redelivery, exact filesystem evidence, PostgreSQL published outbox state, and duplicate-safe `raw.persisted` emission.
 - Milestone 3 executable development raw-preserver runtime with a durable `raw-preserver` pull consumer, explicit ACK/retry/isolate transport semantics, least-privilege NATS consumer API permissions, service-specific PostgreSQL login bootstrap, and UUIDv7 runtime identity generation.
 - Milestone 3 real PostgreSQL `MetadataStore` integration coverage with the least-privilege application role, full uint64 locator round-trip, idempotent publication completion, conflict rollback, and forbidden-delete verification.
