@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cerbero.local/schemas/normalization-dlq-v1.schema.json",
+  "title": "CERBERO Normalization DLQ Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "dlq_record_id",
+    "original_subject",
+    "original_payload_sha256",
+    "consumer",
+    "attempt_count",
+    "error_code",
+    "error_category",
+    "failure_stage",
+    "error_message",
+    "retryable",
+    "first_failure_unix_ms",
+    "last_failure_unix_ms"
+  ],
+  "properties": {
+    "schema_version": {"const": "cerbero.normalization_dlq.v1"},
+    "dlq_record_id": {"type": "string", "minLength": 1},
+    "original_message_id": {"type": ["string", "null"]},
+    "original_subject": {"type": "string", "minLength": 1},
+    "original_payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "consumer": {"type": "string", "minLength": 1},
+    "attempt_count": {"type": "integer", "minimum": 1},
+    "stream_sequence": {"type": ["integer", "null"], "minimum": 1},
+    "consumer_sequence": {"type": ["integer", "null"], "minimum": 1},
+    "error_code": {"type": "string", "minLength": 1},
+    "error_category": {
+      "enum": ["PARSING", "NORMALIZATION", "STORAGE", "TRANSPORT", "DEPENDENCY", "INTEGRITY", "INTERNAL"]
+    },
+    "failure_stage": {"type": "string", "minLength": 1},
+    "error_message": {"type": "string"},
+    "retryable": {"type": "boolean"},
+    "first_failure_unix_ms": {"type": "integer", "minimum": 0},
+    "last_failure_unix_ms": {"type": "integer", "minimum": 0},
+    "tenant_id": {"type": ["string", "null"]},
+    "raw_event_id": {"type": ["string", "null"]},
+    "parser_id": {"type": ["string", "null"]},
+    "parser_version": {"type": ["string", "null"]},
+    "request_id": {"type": ["string", "null"]},
+    "trace_id": {"type": ["string", "null"]},
+    "correlation_id": {"type": ["string", "null"]}
+  }
+}

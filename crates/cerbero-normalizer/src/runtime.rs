@@ -1,9 +1,15 @@
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
 use async_nats::jetstream::AckKind;
+use cerbero_common::contracts::sha256_lower_hex;
 use futures_util::StreamExt;
 use tokio::sync::watch;
 
 use crate::clickhouse::{ClickHouseStore, StoredNormalization};
-use crate::eventbus::{EventBus, decode_raw_persisted, retry_delay};
+use crate::dead_letter::{NormalizationDeadLetter, unix_time_millis};
+use crate::eventbus::{EventBus, decode_raw_persisted, retry_delay_with_jitter};
+use crate::metrics::{MemoryNormalizerMetrics, NormalizerMetrics};
 use crate::raw_store::FilesystemRawReader;
 use crate::runtime_config::RuntimeConfig;
 use crate::system_id::{SystemIdGenerator, new_uuid_v7};
@@ -11,7 +17,16 @@ use crate::{NormalizerCore, NormalizerCoreConfig, NormalizerError, SystemClock};
 
 pub async fn run(
     config: RuntimeConfig,
+    shutdown: watch::Receiver<bool>,
+) -> Result<(), NormalizerError> {
+    let metrics: Arc<dyn NormalizerMetrics> = Arc::new(MemoryNormalizerMetrics::default());
+    run_with_metrics(config, shutdown, metrics).await
+}
+
+pub async fn run_with_metrics(
+    config: RuntimeConfig,
     mut shutdown: watch::Receiver<bool>,
+    metrics: Arc<dyn NormalizerMetrics>,
 ) -> Result<(), NormalizerError> {
     let raw_reader = FilesystemRawReader::new(&config.raw_store_path)?;
     let store = ClickHouseStore::new(
@@ -41,6 +56,18 @@ pub async fn run(
         Box::new(SystemClock),
         Box::new(SystemIdGenerator),
     )?;
+    core.set_source_time_policies(config.source_time_policies.clone());
+    core.set_metrics(Arc::clone(&metrics));
+
+    let mut processor = RuntimeProcessor {
+        config,
+        raw_reader,
+        store,
+        bus,
+        core,
+        metrics,
+        first_failures: BTreeMap::new(),
+    };
 
     loop {
         tokio::select! {
@@ -64,47 +91,131 @@ pub async fn run(
                     message: error.to_string(),
                     retryable: true,
                 })?;
-                let deliveries = message.info().map_or(1, |info| info.delivered);
-                match process_message(
-                    &config,
-                    &raw_reader,
-                    &store,
-                    &bus,
-                    &mut core,
-                    &message,
-                )
-                .await
-                {
-                    Ok(()) => message.double_ack().await.map_err(|error| NormalizerError {
-                        code: "CER-NORM-NATS-ACK",
-                        message: error.to_string(),
+                processor.handle_message(&message).await?;
+            }
+        }
+    }
+}
+
+struct RuntimeProcessor {
+    config: RuntimeConfig,
+    raw_reader: FilesystemRawReader,
+    store: ClickHouseStore,
+    bus: EventBus,
+    core: NormalizerCore,
+    metrics: Arc<dyn NormalizerMetrics>,
+    first_failures: BTreeMap<String, i64>,
+}
+
+impl RuntimeProcessor {
+    async fn handle_message(
+        &mut self,
+        message: &async_nats::jetstream::Message,
+    ) -> Result<(), NormalizerError> {
+        let deliveries = message.info().map_or(1, |info| info.delivered);
+        let failure_key = delivery_identity(message);
+        let outcome = process_message(
+            &self.config,
+            &self.raw_reader,
+            &self.store,
+            &self.bus,
+            &mut self.core,
+            message,
+        )
+        .await;
+
+        match outcome {
+            Ok(()) => {
+                self.first_failures.remove(&failure_key);
+                message.double_ack().await.map_err(|error| NormalizerError {
+                    code: "CER-NORM-NATS-ACK",
+                    message: error.to_string(),
+                    retryable: true,
+                })
+            }
+            Err(error) if error.retryable => {
+                self.first_failures
+                    .entry(failure_key.clone())
+                    .or_insert_with(unix_time_millis);
+                let delay = retry_delay_with_jitter(
+                    deliveries,
+                    self.config.retry_min_delay,
+                    self.config.retry_max_delay,
+                    &failure_key,
+                );
+                eprintln!("normalizer transient failure (retry in {delay:?}): {error}");
+                message
+                    .ack_with(AckKind::Nak(Some(delay)))
+                    .await
+                    .map_err(|ack_error| NormalizerError {
+                        code: "CER-NORM-NATS-NAK",
+                        message: ack_error.to_string(),
                         retryable: true,
-                    })?,
-                    Err(error) if error.retryable => {
-                        let delay = retry_delay(
-                            deliveries,
-                            config.retry_min_delay,
-                            config.retry_max_delay,
-                        );
-                        eprintln!("normalizer transient failure (retry in {delay:?}): {error}");
-                        message
-                            .ack_with(AckKind::Nak(Some(delay)))
-                            .await
-                            .map_err(|ack_error| NormalizerError {
-                                code: "CER-NORM-NATS-NAK",
-                                message: ack_error.to_string(),
-                                retryable: true,
-                            })?;
-                    }
-                    Err(error) => {
-                        eprintln!("normalizer permanent failure (isolated): {error}");
-                        message.ack_with(AckKind::Term).await.map_err(|ack_error| NormalizerError {
-                            code: "CER-NORM-NATS-TERM",
-                            message: ack_error.to_string(),
-                            retryable: true,
-                        })?;
-                    }
-                }
+                    })
+            }
+            Err(error) => {
+                self.handle_permanent_failure(message, deliveries, &failure_key, &error)
+                    .await
+            }
+        }
+    }
+
+    async fn handle_permanent_failure(
+        &mut self,
+        message: &async_nats::jetstream::Message,
+        deliveries: i64,
+        failure_key: &str,
+        error: &NormalizerError,
+    ) -> Result<(), NormalizerError> {
+        let first_failure_unix_ms = *self
+            .first_failures
+            .entry(failure_key.to_string())
+            .or_insert_with(unix_time_millis);
+        let parser_identity = best_effort_parser_identity(&self.raw_reader, &self.core, message);
+        let dead_letter = NormalizationDeadLetter::from_message(
+            message,
+            crate::NORMALIZER_CONSUMER_NAME,
+            error,
+            parser_identity
+                .as_ref()
+                .map(|(parser_id, version)| (parser_id.as_str(), version.as_str())),
+            first_failure_unix_ms,
+        );
+
+        match self.bus.publish_normalization_dlq(&dead_letter).await {
+            Ok(()) => {
+                self.metrics.record_dlq();
+                eprintln!("normalizer permanent failure dead-lettered before Term: {error}");
+                message
+                    .ack_with(AckKind::Term)
+                    .await
+                    .map_err(|ack_error| NormalizerError {
+                        code: "CER-NORM-NATS-TERM",
+                        message: ack_error.to_string(),
+                        retryable: true,
+                    })?;
+                self.first_failures.remove(failure_key);
+                Ok(())
+            }
+            Err(dlq_error) => {
+                let delay = retry_delay_with_jitter(
+                    deliveries,
+                    self.config.retry_min_delay,
+                    self.config.retry_max_delay,
+                    failure_key,
+                );
+                eprintln!(
+                    "normalizer DLQ publication failed; preserving original message for retry \
+                     (retry in {delay:?}): {dlq_error}"
+                );
+                message
+                    .ack_with(AckKind::Nak(Some(delay)))
+                    .await
+                    .map_err(|ack_error| NormalizerError {
+                        code: "CER-NORM-NATS-NAK",
+                        message: ack_error.to_string(),
+                        retryable: true,
+                    })
             }
         }
     }
@@ -140,7 +251,7 @@ async fn process_message(
         })?;
     let candidate = StoredNormalization::from_plan(
         &plan,
-        incoming.persisted.event_time.as_ref(),
+        plan.resolved_event_time.as_ref(),
         ingest_time,
         &incoming.envelope,
         new_uuid_v7(),
@@ -151,6 +262,23 @@ async fn process_message(
     validate_existing(&stored, &incoming.persisted.event_id, &logical_key)?;
     bus.publish_normalized(&stored, incoming.request_id.as_deref())
         .await
+}
+
+fn best_effort_parser_identity(
+    raw_reader: &FilesystemRawReader,
+    core: &NormalizerCore,
+    message: &async_nats::jetstream::Message,
+) -> Option<(String, String)> {
+    let incoming = decode_raw_persisted(message).ok()?;
+    let raw = raw_reader.read(&incoming.persisted).ok()?;
+    core.parser_identity(&incoming.persisted, &raw).ok()
+}
+
+fn delivery_identity(message: &async_nats::jetstream::Message) -> String {
+    message.info().map_or_else(
+        |_| format!("payload:{}", sha256_lower_hex(message.payload.as_ref())),
+        |info| format!("stream:{}", info.stream_sequence),
+    )
 }
 
 fn validate_existing(

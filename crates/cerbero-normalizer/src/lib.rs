@@ -8,13 +8,16 @@
 mod canonical;
 mod clickhouse;
 mod core;
+mod dead_letter;
 mod eventbus;
 mod mapping;
+mod metrics;
 mod parser;
 mod parser_formats;
 mod raw_store;
 mod runtime;
 mod runtime_config;
+mod source_time;
 mod system_id;
 
 pub use canonical::{canonical_json_bytes, canonical_json_hash};
@@ -39,12 +42,24 @@ pub use parser_formats::{
 };
 
 pub use clickhouse::{ClickHouseStore, StoredNormalization};
+pub use dead_letter::{NORMALIZATION_DLQ_SCHEMA, NormalizationDeadLetter, unix_time_millis};
 pub use eventbus::{
-    ANALYTICS_STREAM_NAME, EventBus, IncomingRawPersisted, NORMALIZED_CREATED_SUBJECT,
-    NORMALIZER_CONSUMER_NAME, RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, REQUEST_ID_HEADER,
-    decode_raw_persisted, retry_delay,
+    ANALYTICS_STREAM_NAME, DLQ_SCHEMA_HEADER, DLQ_STREAM_NAME, EventBus, IncomingRawPersisted,
+    NORMALIZATION_DLQ_SUBJECT, NORMALIZED_CREATED_SUBJECT, NORMALIZER_CONSUMER_NAME,
+    RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, REQUEST_ID_HEADER, decode_raw_persisted, retry_delay,
+    retry_delay_with_jitter,
+};
+pub use metrics::{
+    DLQ_NORMALIZATION_TOTAL, EVENTS_NORMALIZED_TOTAL, EVENTS_PARSED_TOTAL, MAPPING_BY_ID,
+    MemoryNormalizerMetrics, MetricsSnapshot, NORMALIZATION_FAILED_TOTAL, NORMALIZATION_LATENCY,
+    NORMALIZATION_PARTIAL_TOTAL, NORMALIZATION_SUCCESS_TOTAL, NoopNormalizerMetrics,
+    NormalizationMetricStatus, NormalizerMetrics, PARSE_FAILED_TOTAL, PARSE_PARTIAL_TOTAL,
+    PARSE_SUCCESS_TOTAL, PARSE_UNSUPPORTED_TOTAL, PARSER_BY_ID, PARSER_LATENCY, ParseMetricStatus,
 };
 pub use raw_store::FilesystemRawReader;
-pub use runtime::run;
+pub use runtime::{run, run_with_metrics};
 pub use runtime_config::RuntimeConfig;
+pub use source_time::{
+    EventTimeContext, SourceTimeError, SourceTimePolicy, SourceTimePolicyRegistry,
+};
 pub use system_id::{SystemIdGenerator, new_uuid_v7};
