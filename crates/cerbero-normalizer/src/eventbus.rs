@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use async_nats::HeaderMap;
 use async_nats::jetstream;
-use async_nats::jetstream::consumer::{AckPolicy, PullConsumer, pull};
+use async_nats::jetstream::consumer::{AckPolicy, DeliverPolicy, PullConsumer, pull};
 use prost::Message as _;
 use prost_types::Any;
 
@@ -11,6 +11,7 @@ use cerbero_common::contracts::{
     sha256_lower_hex, validate_envelope, validate_raw_event_persisted,
 };
 
+use crate::runtime_config::ReplayInput;
 use crate::{NormalizationDeadLetter, NormalizerError, StoredNormalization};
 
 pub const RAW_STREAM_NAME: &str = "CERBERO_RAW";
@@ -22,9 +23,14 @@ pub const NORMALIZATION_DLQ_SUBJECT: &str = "cerbero.v1.dlq.normalization";
 pub const DLQ_SCHEMA_HEADER: &str = "Cerbero-DLQ-Schema";
 pub const NORMALIZER_CONSUMER_NAME: &str = "normalizer";
 pub const NORMALIZER_REPLAY_CONSUMER_NAME: &str = "normalizer-replay";
+pub const NORMALIZER_SELECTIVE_REPLAY_CONSUMER_NAME: &str = "normalizer-replay-selective";
 pub const NORMALIZER_TEST_CONSUMER_NAME: &str = "normalizer-test";
 pub const REQUEST_ID_HEADER: &str = "Cerbero-Request-Id";
 pub const EXECUTION_MODE_HEADER: &str = "Cerbero-Execution-Mode";
+pub const RAW_REPLAY_SUBJECT: &str = "cerbero.v1.raw.replay";
+pub const REPLAY_ROOT_DLQ_RECORD_ID_HEADER: &str = "Cerbero-Replay-Root-DLQ-Record-Id";
+pub const REPLAY_ATTEMPT_HEADER: &str = "Cerbero-Replay-Attempt";
+pub const REPLAY_SOURCE_STREAM_SEQUENCE_HEADER: &str = "Cerbero-Replay-Source-Stream-Sequence";
 const NATS_MESSAGE_ID_HEADER: &str = "Nats-Msg-Id";
 
 #[derive(Clone)]
@@ -58,8 +64,11 @@ impl EventBus {
     pub async fn consumer(
         &self,
         execution_mode: ExecutionMode,
+        replay_input: ReplayInput,
     ) -> Result<PullConsumer, NormalizerError> {
-        let consumer_name = normalizer_consumer_name(execution_mode)?;
+        let (consumer_name, filter_subject) =
+            normalizer_consumer_route(execution_mode, replay_input)?;
+        let deliver_policy = normalizer_deliver_policy(execution_mode, replay_input);
         let stream = self
             .jetstream
             .get_stream(RAW_STREAM_NAME)
@@ -70,8 +79,9 @@ impl EventBus {
                 consumer_name,
                 pull::Config {
                     durable_name: Some(consumer_name.to_string()),
+                    deliver_policy,
                     ack_policy: AckPolicy::Explicit,
-                    filter_subject: RAW_PERSISTED_SUBJECT.to_string(),
+                    filter_subject: filter_subject.to_string(),
                     max_ack_pending: 1,
                     ..Default::default()
                 },
@@ -83,11 +93,12 @@ impl EventBus {
     pub async fn delete_execution_consumer(
         &self,
         execution_mode: ExecutionMode,
+        replay_input: ReplayInput,
     ) -> Result<(), NormalizerError> {
         if execution_mode == ExecutionMode::Live {
             return Ok(());
         }
-        let consumer_name = normalizer_consumer_name(execution_mode)?;
+        let (consumer_name, _) = normalizer_consumer_route(execution_mode, replay_input)?;
         let stream = self
             .jetstream
             .get_stream(RAW_STREAM_NAME)
@@ -326,12 +337,37 @@ fn execution_mode_header_value(
 
 pub fn normalizer_consumer_name(
     execution_mode: ExecutionMode,
+    replay_input: ReplayInput,
 ) -> Result<&'static str, NormalizerError> {
-    match execution_mode {
-        ExecutionMode::Live => Ok(NORMALIZER_CONSUMER_NAME),
-        ExecutionMode::Replay => Ok(NORMALIZER_REPLAY_CONSUMER_NAME),
-        ExecutionMode::Test => Ok(NORMALIZER_TEST_CONSUMER_NAME),
-        ExecutionMode::Unspecified => Err(NormalizerError {
+    normalizer_consumer_route(execution_mode, replay_input).map(|(name, _)| name)
+}
+
+fn normalizer_deliver_policy(
+    execution_mode: ExecutionMode,
+    replay_input: ReplayInput,
+) -> DeliverPolicy {
+    if execution_mode == ExecutionMode::Replay && replay_input == ReplayInput::Selective {
+        DeliverPolicy::New
+    } else {
+        DeliverPolicy::All
+    }
+}
+
+fn normalizer_consumer_route(
+    execution_mode: ExecutionMode,
+    replay_input: ReplayInput,
+) -> Result<(&'static str, &'static str), NormalizerError> {
+    match (execution_mode, replay_input) {
+        (ExecutionMode::Live, _) => Ok((NORMALIZER_CONSUMER_NAME, RAW_PERSISTED_SUBJECT)),
+        (ExecutionMode::Replay, ReplayInput::Historical) => {
+            Ok((NORMALIZER_REPLAY_CONSUMER_NAME, RAW_PERSISTED_SUBJECT))
+        }
+        (ExecutionMode::Replay, ReplayInput::Selective) => Ok((
+            NORMALIZER_SELECTIVE_REPLAY_CONSUMER_NAME,
+            RAW_REPLAY_SUBJECT,
+        )),
+        (ExecutionMode::Test, _) => Ok((NORMALIZER_TEST_CONSUMER_NAME, RAW_PERSISTED_SUBJECT)),
+        (ExecutionMode::Unspecified, _) => Err(NormalizerError {
             code: "CER-NORM-EXECUTION-MODE",
             message: "execution mode must be LIVE, REPLAY, or TEST".to_string(),
             retryable: false,
@@ -350,6 +386,41 @@ fn transport_error(error: impl std::fmt::Display) -> NormalizerError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn replay_routes_keep_historical_and_selective_consumers_disjoint() {
+        assert_eq!(
+            normalizer_consumer_route(ExecutionMode::Replay, ReplayInput::Historical).unwrap(),
+            (NORMALIZER_REPLAY_CONSUMER_NAME, RAW_PERSISTED_SUBJECT)
+        );
+        assert_eq!(
+            normalizer_consumer_route(ExecutionMode::Replay, ReplayInput::Selective).unwrap(),
+            (
+                NORMALIZER_SELECTIVE_REPLAY_CONSUMER_NAME,
+                RAW_REPLAY_SUBJECT
+            )
+        );
+        assert_eq!(
+            normalizer_consumer_route(ExecutionMode::Live, ReplayInput::Selective).unwrap(),
+            (NORMALIZER_CONSUMER_NAME, RAW_PERSISTED_SUBJECT)
+        );
+    }
+
+    #[test]
+    fn selective_replay_starts_at_new_messages_only() {
+        assert_eq!(
+            normalizer_deliver_policy(ExecutionMode::Replay, ReplayInput::Selective),
+            DeliverPolicy::New
+        );
+        assert_eq!(
+            normalizer_deliver_policy(ExecutionMode::Replay, ReplayInput::Historical),
+            DeliverPolicy::All
+        );
+        assert_eq!(
+            normalizer_deliver_policy(ExecutionMode::Live, ReplayInput::Historical),
+            DeliverPolicy::All
+        );
+    }
 
     #[test]
     fn jitter_is_deterministic_bounded_and_not_below_minimum() {

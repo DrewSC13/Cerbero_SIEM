@@ -64,7 +64,7 @@ pub use raw_store::FilesystemRawReader;
 pub use retry_state::{RetryFailure, RetryState, RetryStateStore};
 pub use retry_state_postgres::PostgresRetryStateStore;
 pub use runtime::{run, run_with_metrics};
-pub use runtime_config::RuntimeConfig;
+pub use runtime_config::{ReplayInput, RuntimeConfig};
 pub use source_time::{
     EventTimeContext, SourceTimeError, SourceTimePolicy, SourceTimePolicyRegistry,
 };

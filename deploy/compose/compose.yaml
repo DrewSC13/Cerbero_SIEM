@@ -54,6 +54,8 @@ services:
       NATS_RAW_PRESERVER_PASSWORD: ${NATS_RAW_PRESERVER_PASSWORD:?copy .env.example to .env first}
       NATS_NORMALIZER_USER: ${NATS_NORMALIZER_USER:?copy .env.example to .env first}
       NATS_NORMALIZER_PASSWORD: ${NATS_NORMALIZER_PASSWORD:?copy .env.example to .env first}
+      NATS_WORKER_USER: ${NATS_WORKER_USER:?copy .env.example to .env first}
+      NATS_WORKER_PASSWORD: ${NATS_WORKER_PASSWORD:?copy .env.example to .env first}
       NATS_DETECTION_USER: ${NATS_DETECTION_USER:?copy .env.example to .env first}
       NATS_DETECTION_PASSWORD: ${NATS_DETECTION_PASSWORD:?copy .env.example to .env first}
     ports:

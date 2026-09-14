@@ -69,7 +69,9 @@ pub async fn run_with_metrics(
         config.instance_id.clone(),
     )
     .await?;
-    let consumer = bus.consumer(config.execution_mode).await?;
+    let consumer = bus
+        .consumer(config.execution_mode, config.replay_input)
+        .await?;
     let mut messages = consumer.messages().await.map_err(|error| NormalizerError {
         code: "CER-NORM-NATS-CONSUME",
         message: error.to_string(),
@@ -167,7 +169,7 @@ struct RuntimeProcessor {
 impl RuntimeProcessor {
     async fn clean_shutdown(&mut self) -> Result<(), NormalizerError> {
         self.bus
-            .delete_execution_consumer(self.config.execution_mode)
+            .delete_execution_consumer(self.config.execution_mode, self.config.replay_input)
             .await
     }
 
@@ -177,7 +179,8 @@ impl RuntimeProcessor {
     ) -> Result<(), NormalizerError> {
         let deliveries = message.info().map_or(1, |info| info.delivered.max(1));
         let message_key = delivery_identity(message);
-        let consumer_name = normalizer_consumer_name(self.config.execution_mode)?;
+        let consumer_name =
+            normalizer_consumer_name(self.config.execution_mode, self.config.replay_input)?;
 
         if let Some(state) = self.retry_store.load(consumer_name, &message_key).await?
             && state.isolation_required()

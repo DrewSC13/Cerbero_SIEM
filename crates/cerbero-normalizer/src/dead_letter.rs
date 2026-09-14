@@ -6,6 +6,10 @@ use cerbero_common::contracts::v1::{CerberoEnvelope, RawEventPersisted};
 use prost::Message as _;
 use serde::{Deserialize, Serialize};
 
+use crate::eventbus::{
+    RAW_PERSISTED_SUBJECT, RAW_REPLAY_SUBJECT, REPLAY_ATTEMPT_HEADER,
+    REPLAY_ROOT_DLQ_RECORD_ID_HEADER, REPLAY_SOURCE_STREAM_SEQUENCE_HEADER,
+};
 use crate::new_uuid_v7;
 
 pub const NORMALIZATION_DLQ_SCHEMA: &str = "cerbero.normalization_dlq.v1";
@@ -45,6 +49,8 @@ pub struct NormalizationDeadLetter {
     pub request_id: Option<String>,
     pub trace_id: Option<String>,
     pub correlation_id: Option<String>,
+    pub replay_root_dlq_record_id: Option<String>,
+    pub replay_attempt: Option<u32>,
 }
 
 impl NormalizationDeadLetter {
@@ -69,15 +75,39 @@ impl NormalizationDeadLetter {
             .as_ref()
             .and_then(|headers| headers.get("Cerbero-Request-Id"))
             .and_then(|value| non_empty(value.as_str()));
+        let replay_root_dlq_record_id = message
+            .headers
+            .as_ref()
+            .and_then(|headers| headers.get(REPLAY_ROOT_DLQ_RECORD_ID_HEADER))
+            .and_then(|value| non_empty(value.as_str()));
+        let replay_attempt = message
+            .headers
+            .as_ref()
+            .and_then(|headers| headers.get(REPLAY_ATTEMPT_HEADER))
+            .and_then(|value| value.as_str().parse::<u32>().ok())
+            .filter(|value| *value > 0);
+        let replay_source_stream_sequence = message
+            .headers
+            .as_ref()
+            .and_then(|headers| headers.get(REPLAY_SOURCE_STREAM_SEQUENCE_HEADER))
+            .and_then(|value| value.as_str().parse::<u64>().ok())
+            .filter(|value| *value > 0);
+        let (original_subject, stream_sequence) = dlq_source_identity(
+            message.subject.as_str(),
+            info.as_ref().map(|value| value.stream_sequence),
+            replay_root_dlq_record_id.as_deref(),
+            replay_attempt,
+            replay_source_stream_sequence,
+        );
         Self {
             schema_version: NORMALIZATION_DLQ_SCHEMA.to_string(),
             dlq_record_id: new_uuid_v7(),
             original_message_id,
-            original_subject: message.subject.to_string(),
+            original_subject,
             original_payload_sha256: sha256_lower_hex(message.payload.as_ref()),
             consumer: consumer.to_string(),
             attempt_count: failure.attempt_count,
-            stream_sequence: info.as_ref().map(|value| value.stream_sequence),
+            stream_sequence,
             consumer_sequence: info.as_ref().map(|value| value.consumer_sequence),
             error_code: failure.error_code.to_string(),
             error_category: error_category(failure.error_code).to_string(),
@@ -101,11 +131,21 @@ impl NormalizationDeadLetter {
             correlation_id: envelope
                 .as_ref()
                 .and_then(|value| non_empty(value.correlation_id.as_str())),
+            replay_root_dlq_record_id,
+            replay_attempt,
         }
     }
 
     #[must_use]
     pub fn nats_message_id(&self) -> String {
+        if let (Some(replay_root), Some(replay_attempt)) =
+            (&self.replay_root_dlq_record_id, self.replay_attempt)
+        {
+            return format!(
+                "normalization-dlq:v1:replay:{replay_root}:{replay_attempt}:{}",
+                self.original_payload_sha256
+            );
+        }
         if let Some(message_id) = &self.original_message_id {
             format!(
                 "normalization-dlq:v1:{message_id}:{}",
@@ -135,6 +175,27 @@ fn system_time_millis(time: SystemTime) -> i64 {
 
 fn non_empty(value: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_string())
+}
+
+fn dlq_source_identity(
+    message_subject: &str,
+    message_stream_sequence: Option<u64>,
+    replay_root_dlq_record_id: Option<&str>,
+    replay_attempt: Option<u32>,
+    replay_source_stream_sequence: Option<u64>,
+) -> (String, Option<u64>) {
+    if message_subject == RAW_REPLAY_SUBJECT
+        && replay_root_dlq_record_id.is_some()
+        && replay_attempt.is_some()
+        && replay_source_stream_sequence.is_some()
+    {
+        (
+            RAW_PERSISTED_SUBJECT.to_string(),
+            replay_source_stream_sequence,
+        )
+    } else {
+        (message_subject.to_string(), message_stream_sequence)
+    }
 }
 
 fn error_category(code: &str) -> &'static str {
@@ -217,6 +278,8 @@ mod tests {
                 request_id: None,
                 trace_id: None,
                 correlation_id: None,
+                replay_root_dlq_record_id: None,
+                replay_attempt: None,
             }
         }
 
@@ -235,6 +298,49 @@ mod tests {
             no_message_id_a.nats_message_id(),
             no_message_id_b.nats_message_id()
         );
+
+        let mut replay_attempt_one = record(Some("reused-invalid-id"), &hash_a, Some(21));
+        replay_attempt_one.replay_root_dlq_record_id = Some("root-dlq".to_string());
+        replay_attempt_one.replay_attempt = Some(1);
+        let mut replay_attempt_one_redelivery =
+            record(Some("reused-invalid-id"), &hash_a, Some(22));
+        replay_attempt_one_redelivery.replay_root_dlq_record_id = Some("root-dlq".to_string());
+        replay_attempt_one_redelivery.replay_attempt = Some(1);
+        let mut replay_attempt_two = record(Some("reused-invalid-id"), &hash_a, Some(23));
+        replay_attempt_two.replay_root_dlq_record_id = Some("root-dlq".to_string());
+        replay_attempt_two.replay_attempt = Some(2);
+
+        assert_eq!(
+            replay_attempt_one.nats_message_id(),
+            replay_attempt_one_redelivery.nats_message_id()
+        );
+        assert_ne!(
+            replay_attempt_one.nats_message_id(),
+            replay_attempt_two.nats_message_id()
+        );
+    }
+
+    #[test]
+    fn selective_replay_dlq_preserves_original_raw_locator() {
+        let (subject, sequence) = dlq_source_identity(
+            RAW_REPLAY_SUBJECT,
+            Some(900),
+            Some("root-dlq"),
+            Some(2),
+            Some(42),
+        );
+        assert_eq!(subject, RAW_PERSISTED_SUBJECT);
+        assert_eq!(sequence, Some(42));
+
+        let (fallback_subject, fallback_sequence) = dlq_source_identity(
+            RAW_REPLAY_SUBJECT,
+            Some(900),
+            Some("root-dlq"),
+            Some(2),
+            None,
+        );
+        assert_eq!(fallback_subject, RAW_REPLAY_SUBJECT);
+        assert_eq!(fallback_sequence, Some(900));
     }
 
     #[test]
