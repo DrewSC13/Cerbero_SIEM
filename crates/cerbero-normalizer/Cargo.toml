@@ -8,13 +8,15 @@ license.workspace = true
 
 [dependencies]
 async-nats = "=0.50.0"
+base64 = "=0.22.1"
 cerbero-common = { path = "../cerbero-common" }
 futures-util = "=0.3.31"
 prost = "=0.14.4"
 prost-types = "=0.14.4"
 reqwest = { version = "=0.12.24", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.145"
+serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
+time = { version = "=0.3.55", features = ["parsing"] }
 tokio = { version = "=1.48.0", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 uuid = { version = "=1.18.1", features = ["v7"] }
 

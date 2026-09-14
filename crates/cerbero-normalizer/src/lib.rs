@@ -11,6 +11,7 @@ mod core;
 mod eventbus;
 mod mapping;
 mod parser;
+mod parser_formats;
 mod raw_store;
 mod runtime;
 mod runtime_config;
@@ -26,8 +27,15 @@ pub use mapping::{
     OCSF_VERSION, OcsfMapping, SshAuthenticationMapping,
 };
 pub use parser::{
-    LINUX_SSHD_PARSER_ID, LINUX_SSHD_PARSER_VERSION, LinuxSshdParser, ParsedEvent, Parser,
-    ParserInput, ParserRegistry, ParsingStatus, TimestampCandidate,
+    LINUX_SSHD_PARSER_ID, LINUX_SSHD_PARSER_VERSION, LinuxSshdParser, ParseError, ParsedEvent,
+    ParsedValue, Parser, ParserCandidate, ParserInput, ParserLimits, ParserRegistry,
+    ParserSelection, ParserSelectionTrace, ParserTier, ParsingStatus, TimestampCandidate,
+};
+pub use parser_formats::{
+    GENERIC_JSON_PARSER_ID, GENERIC_JSON_PARSER_VERSION, GenericJsonParser,
+    JOURNALD_CANONICAL_PARSER_ID, JOURNALD_CANONICAL_PARSER_VERSION, JournaldCanonicalParser,
+    SYSLOG_RFC3164_PARSER_ID, SYSLOG_RFC3164_PARSER_VERSION, SYSLOG_RFC5424_PARSER_ID,
+    SYSLOG_RFC5424_PARSER_VERSION, SyslogRfc3164Parser, SyslogRfc5424Parser,
 };
 
 pub use clickhouse::{ClickHouseStore, StoredNormalization};

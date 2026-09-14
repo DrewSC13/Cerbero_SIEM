@@ -196,12 +196,15 @@ impl NormalizerCore {
             });
         }
 
-        let input = ParserInput { raw, persisted };
-        let parser = self.parsers.select(&input).map_err(from_parse)?;
-        let parsed = parser.parse(&input).map_err(from_parse)?;
+        let input = ParserInput {
+            raw,
+            persisted,
+            configured_parser_id: None,
+        };
+        let parsed = self.parsers.parse(&input).map_err(from_parse)?;
         let mapping = self
             .mappings
-            .for_parser(parser.id())
+            .for_parser(&parsed.parser_id)
             .map_err(from_mapping)?;
         let normalized_at = self.clock.now()?;
         let normalized_at_millis = timestamp_to_unix_millis(&normalized_at)?;
@@ -489,5 +492,24 @@ mod tests {
             live.logical_key(&persisted),
             next_pipeline.logical_key(&persisted)
         );
+    }
+
+    #[test]
+    fn parse_only_parser_does_not_create_false_normalization() {
+        let raw = br#"{"event":"login"}"#;
+        let mut persisted = persisted(raw);
+        persisted.content_type = "application/json".to_string();
+        let mut core = NormalizerCore::new(
+            NormalizerCoreConfig {
+                pipeline_version: "normalizer-v1".to_string(),
+                execution_mode: ExecutionMode::Live,
+            },
+            Box::new(SystemClock),
+            Box::new(FixedIdGenerator::default()),
+        )
+        .unwrap();
+        let error = core.normalize(&envelope(), &persisted, raw).unwrap_err();
+        assert_eq!(error.code, "CER-NORM-MAPPING-UNSUPPORTED");
+        assert!(!error.retryable);
     }
 }
