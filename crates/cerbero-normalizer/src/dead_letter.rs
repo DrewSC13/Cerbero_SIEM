@@ -102,7 +102,10 @@ impl NormalizationDeadLetter {
     #[must_use]
     pub fn nats_message_id(&self) -> String {
         if let Some(message_id) = &self.original_message_id {
-            format!("normalization-dlq:v1:{message_id}")
+            format!(
+                "normalization-dlq:v1:{message_id}:{}",
+                self.original_payload_sha256
+            )
         } else if let Some(sequence) = self.stream_sequence {
             format!("normalization-dlq:v1:stream:{sequence}")
         } else {
@@ -175,6 +178,57 @@ fn failure_stage(code: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dlq_dedup_identity_does_not_collapse_distinct_payloads_with_reused_message_id() {
+        fn record(
+            message_id: Option<&str>,
+            payload_hash: &str,
+            sequence: Option<u64>,
+        ) -> NormalizationDeadLetter {
+            NormalizationDeadLetter {
+                schema_version: NORMALIZATION_DLQ_SCHEMA.to_string(),
+                dlq_record_id: "01995000-0000-7000-8000-000000000001".to_string(),
+                original_message_id: message_id.map(str::to_string),
+                original_subject: "cerbero.v1.raw.persisted".to_string(),
+                original_payload_sha256: payload_hash.to_string(),
+                consumer: "normalizer".to_string(),
+                attempt_count: 1,
+                stream_sequence: sequence,
+                consumer_sequence: Some(1),
+                error_code: "CER-NORM-ENVELOPE-CONTRACT".to_string(),
+                error_category: "NORMALIZATION".to_string(),
+                failure_stage: "handoff_validation".to_string(),
+                error_message: "invalid envelope".to_string(),
+                retryable: false,
+                first_failure_unix_ms: 1,
+                last_failure_unix_ms: 1,
+                tenant_id: None,
+                raw_event_id: None,
+                parser_id: None,
+                parser_version: None,
+                request_id: None,
+                trace_id: None,
+                correlation_id: None,
+            }
+        }
+
+        let hash_a = "a".repeat(64);
+        let hash_b = "b".repeat(64);
+        let first = record(Some("reused-invalid-id"), &hash_a, Some(7));
+        let duplicate = record(Some("reused-invalid-id"), &hash_a, Some(8));
+        let distinct_payload = record(Some("reused-invalid-id"), &hash_b, Some(9));
+
+        assert_eq!(first.nats_message_id(), duplicate.nats_message_id());
+        assert_ne!(first.nats_message_id(), distinct_payload.nats_message_id());
+
+        let no_message_id_a = record(None, &hash_a, Some(11));
+        let no_message_id_b = record(None, &hash_a, Some(12));
+        assert_ne!(
+            no_message_id_a.nats_message_id(),
+            no_message_id_b.nats_message_id()
+        );
+    }
 
     #[test]
     fn category_mapping_keeps_stable_low_cardinality_classes() {

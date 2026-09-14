@@ -32,7 +32,7 @@ The recorder covers events parsed/normalized, parse and normalization status cou
 source-a=-04:00,source-b=+05:30
 ```
 
-The normalizer may resolve an RFC3164 candidate only when the matching `source_id` has configured policy. The persisted raw handoff is not mutated. Changing the policy changes effective configuration hash and derivation identity.
+The normalizer may resolve an RFC3164 candidate only when the selected parser is `cerbero.parser.syslog.rfc3164` and the matching `source_id` has configured policy. Candidate precision text alone never activates the RFC3164 policy. The persisted raw handoff is not mutated. Changing the policy changes effective configuration hash and derivation identity.
 
 ## Still open in Milestone 4
 

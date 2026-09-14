@@ -34,7 +34,7 @@ processing failure
 
 If DLQ publication or its PubAck fails, the original delivery is NAKed and retained for retry. `Term` is forbidden before durable DLQ publication.
 
-JetStream deduplication uses a stable `Nats-Msg-Id` derived from the original CERBERO `message_id` when available, then stream sequence, then payload hash. This provides idempotent durable side effects without claiming distributed exactly-once delivery.
+JetStream deduplication uses a stable `Nats-Msg-Id` derived from the original CERBERO `message_id` together with the original payload SHA-256 when a message ID is available, then stream sequence, then payload hash. Binding the message ID to the payload hash prevents a malformed envelope that reuses an invalid or duplicated ID from collapsing a distinct dead letter. This provides idempotent durable side effects without claiming distributed exactly-once delivery.
 
 The v1 runtime dead-letters permanent failures. A persisted retry-budget ledger across process restarts remains separate work; retryable failures continue to use bounded exponential delay with deterministic jitter and are not silently converted into permanent failures.
 

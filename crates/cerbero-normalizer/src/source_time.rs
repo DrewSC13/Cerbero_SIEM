@@ -6,6 +6,7 @@ use prost_types::Timestamp;
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 
 use crate::ParsedEvent;
+use crate::parser_formats::SYSLOG_RFC3164_PARSER_ID;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceTimeError {
@@ -122,6 +123,9 @@ impl SourceTimePolicyRegistry {
     ) -> Result<EventTimeContext, SourceTimeError> {
         if persisted.event_time.is_some() {
             return Ok(EventTimeContext::from_persisted(persisted));
+        }
+        if parsed.parser_id != SYSLOG_RFC3164_PARSER_ID {
+            return Ok(EventTimeContext::unresolved());
         }
         let Some(policy) = self.policies.get(&persisted.source_id) else {
             return Ok(EventTimeContext::unresolved());
@@ -307,6 +311,26 @@ mod tests {
                 .unwrap()
                 .contains("rfc3164_year=nearest_ingest_year")
         );
+    }
+
+    #[test]
+    fn rfc3164_policy_does_not_resolve_another_parser_with_matching_precision_text() {
+        let registry = SourceTimePolicyRegistry::parse_spec("source-a=-04:00").unwrap();
+        let persisted = RawEventPersisted {
+            source_id: "source-a".to_string(),
+            ingest_time: Some(Timestamp {
+                seconds: 1_800_000_000,
+                nanos: 0,
+            }),
+            ..Default::default()
+        };
+        let mut parsed = parsed_rfc3164();
+        parsed.parser_id = "cerbero.parser.future.example".to_string();
+        parsed.source_event_type = "future.example".to_string();
+
+        let resolution = registry.resolve(&persisted, &parsed).unwrap();
+        assert!(resolution.event_time.is_none());
+        assert_eq!(resolution.source, "ingest_time_fallback");
     }
 
     #[test]

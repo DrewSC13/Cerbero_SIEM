@@ -21,7 +21,7 @@ source_id=-HH:MM
 
 The DEVELOPMENT runtime accepts a comma-separated registry through `CERBERO_NORMALIZER_SOURCE_TIME_OFFSETS`. An empty registry means no assumption is available.
 
-For an RFC3164 timestamp candidate with no year or timezone, v1 reconstructs a complete local datetime by evaluating the ingest-local year and its adjacent years under the configured fixed offset, then selecting the candidate nearest to `ingest_time`. This policy is named:
+For an event parsed specifically by `cerbero.parser.syslog.rfc3164`, an RFC3164 timestamp candidate with no year or timezone is eligible for this policy. Matching the timestamp-candidate precision string alone is insufficient. v1 reconstructs a complete local datetime by evaluating the ingest-local year and its adjacent years under the configured fixed offset, then selecting the candidate nearest to `ingest_time`. This policy is named:
 
 ```text
 fixed_utc_offset=<offset>;rfc3164_year=nearest_ingest_year
