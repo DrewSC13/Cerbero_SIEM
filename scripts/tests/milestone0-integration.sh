@@ -37,9 +37,9 @@ export CERBERO_NATS_URL="nats://127.0.0.1:${NATS_PORT}"
   go test -tags=integration ./internal/preserver -run '^TestDevelopmentRawPreserverRuntime$' -count=1
 )
 
-cargo test -p cerbero-normalizer --test runtime_integration --locked -- --ignored --nocapture
+cargo test -p cerbero-normalizer --test runtime_integration --locked -- --ignored --nocapture --test-threads=1
 
 echo "Milestone 2 NATS-outage integration: PASS"
 echo "Milestone 2 JSON/HTTP durable-ingest runtime integration: PASS"
 echo "Milestone 3 durable raw-preservation runtime integration: PASS"
-echo "Milestone 4 normalizer ClickHouse + governed DLQ runtime integration: PASS"
+echo "Milestone 4 normalizer ClickHouse + governed DLQ + LIVE/REPLAY/TEST history integration: PASS"

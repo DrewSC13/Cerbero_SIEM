@@ -1,0 +1,40 @@
+{
+  "activity_id": 1,
+  "activity_name": "Logon",
+  "auth_protocol": "SSH",
+  "auth_protocol_id": 99,
+  "category_name": "Identity & Access Management",
+  "category_uid": 3,
+  "class_name": "Authentication",
+  "class_uid": 3002,
+  "is_remote": true,
+  "message": "SSH authentication failed for user admin from 10.0.0.8",
+  "metadata": {
+    "cerbero_time_source": "event_time",
+    "logged_time": 1789000001000,
+    "processed_time": 1789000002000,
+    "product": {
+      "name": "Cerbero Normalizer",
+      "vendor_name": "Cerbero"
+    },
+    "version": "1.9.0"
+  },
+  "service": {
+    "name": "sshd"
+  },
+  "severity": "Low",
+  "severity_id": 2,
+  "src_endpoint": {
+    "ip": "10.0.0.8",
+    "port": 50341
+  },
+  "status": "Failure",
+  "status_detail": "Invalid user",
+  "status_id": 2,
+  "time": 1789000000000,
+  "type_name": "Authentication: Logon",
+  "type_uid": 300201,
+  "user": {
+    "name": "admin"
+  }
+}

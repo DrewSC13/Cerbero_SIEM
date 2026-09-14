@@ -109,9 +109,25 @@ pub struct NormalizerCoreConfig {
 impl NormalizerCoreConfig {
     #[must_use]
     pub fn configuration_hash(&self) -> String {
+        self.configuration_hash_for(
+            crate::LINUX_SSHD_PARSER_ID,
+            crate::LINUX_SSHD_PARSER_VERSION,
+            crate::LINUX_SSH_AUTH_MAPPING_ID,
+            crate::LINUX_SSH_AUTH_MAPPING_VERSION,
+        )
+    }
+
+    #[must_use]
+    pub fn configuration_hash_for(
+        &self,
+        parser_id: &str,
+        parser_version: &str,
+        mapping_id: &str,
+        mapping_version: &str,
+    ) -> String {
         sha256_lower_hex(
             format!(
-                "parser=linux/sshd@1\nmapping=linux.ssh.authentication@1\nocsf={}\npipeline={}\nmode={}\n",
+                "parser={parser_id}@{parser_version}\nmapping={mapping_id}@{mapping_version}\nocsf={}\npipeline={}\nmode={}\n",
                 OCSF_VERSION,
                 self.pipeline_version,
                 self.execution_mode.as_str_name()
@@ -132,6 +148,19 @@ pub struct NormalizationPlan {
     pub transformation: Transformation,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DerivationIdentity {
+    pub logical_key: String,
+    pub parser_id: String,
+    pub parser_version: String,
+    pub mapping_id: String,
+    pub mapping_version: String,
+    pub ocsf_version: String,
+    pub pipeline_version: String,
+    pub configuration_hash: String,
+    pub execution_mode: ExecutionMode,
+}
+
 pub struct NormalizerCore {
     config: NormalizerCoreConfig,
     parsers: ParserRegistry,
@@ -148,15 +177,26 @@ impl NormalizerCore {
         clock: Box<dyn Clock>,
         ids: Box<dyn IdGenerator>,
     ) -> Result<Self, NormalizerError> {
+        Self::new_with_linux_sshd_version(config, crate::LINUX_SSHD_PARSER_VERSION, clock, ids)
+    }
+
+    pub fn new_with_linux_sshd_version(
+        config: NormalizerCoreConfig,
+        linux_sshd_parser_version: &str,
+        clock: Box<dyn Clock>,
+        ids: Box<dyn IdGenerator>,
+    ) -> Result<Self, NormalizerError> {
         if config.pipeline_version.is_empty() {
             return Err(invalid("pipeline_version is required"));
         }
         if config.execution_mode == ExecutionMode::Unspecified {
             return Err(invalid("execution_mode must be LIVE, REPLAY, or TEST"));
         }
+        let parsers = ParserRegistry::with_linux_sshd_version(linux_sshd_parser_version)
+            .map_err(from_parse)?;
         Ok(Self {
             config,
-            parsers: ParserRegistry::with_defaults(),
+            parsers,
             mappings: MappingRegistry::with_defaults(),
             source_time_policies: SourceTimePolicyRegistry::default(),
             metrics: Arc::new(NoopNormalizerMetrics),
@@ -190,8 +230,20 @@ impl NormalizerCore {
         ))
     }
 
-    fn configuration_hash_for(&self, persisted: &RawEventPersisted) -> String {
-        let base = self.config.configuration_hash();
+    fn configuration_hash_for(
+        &self,
+        persisted: &RawEventPersisted,
+        parser_id: &str,
+        parser_version: &str,
+        mapping_id: &str,
+        mapping_version: &str,
+    ) -> String {
+        let base = self.config.configuration_hash_for(
+            parser_id,
+            parser_version,
+            mapping_id,
+            mapping_version,
+        );
         if persisted.event_time.is_some() {
             return base;
         }
@@ -206,17 +258,85 @@ impl NormalizerCore {
 
     #[must_use]
     pub fn logical_key(&self, persisted: &RawEventPersisted) -> String {
+        self.logical_key_for(
+            persisted,
+            crate::LINUX_SSHD_PARSER_ID,
+            crate::LINUX_SSHD_PARSER_VERSION,
+            crate::LINUX_SSH_AUTH_MAPPING_ID,
+            crate::LINUX_SSH_AUTH_MAPPING_VERSION,
+        )
+    }
+
+    #[must_use]
+    pub fn logical_key_for(
+        &self,
+        persisted: &RawEventPersisted,
+        parser_id: &str,
+        parser_version: &str,
+        mapping_id: &str,
+        mapping_version: &str,
+    ) -> String {
+        let configuration_hash = self.configuration_hash_for(
+            persisted,
+            parser_id,
+            parser_version,
+            mapping_id,
+            mapping_version,
+        );
         sha256_lower_hex(
             format!(
-                "raw_event_id={}\nparser=linux/sshd@1\nmapping=linux.ssh.authentication@1\nocsf={}\npipeline={}\nconfiguration={}\nexecution_mode={}\n",
+                "raw_event_id={}\nparser={parser_id}@{parser_version}\nmapping={mapping_id}@{mapping_version}\nocsf={}\npipeline={}\nconfiguration={configuration_hash}\nexecution_mode={}\n",
                 persisted.event_id,
                 OCSF_VERSION,
                 self.config.pipeline_version,
-                self.configuration_hash_for(persisted),
                 self.config.execution_mode.as_str_name()
             )
             .as_bytes(),
         )
+    }
+
+    pub fn derivation_identity(
+        &self,
+        persisted: &RawEventPersisted,
+        raw: &[u8],
+    ) -> Result<DerivationIdentity, NormalizerError> {
+        validate_raw_bytes(persisted, raw)?;
+        let input = ParserInput {
+            raw,
+            persisted,
+            configured_parser_id: None,
+        };
+        let selection = self.parsers.select(&input).map_err(from_parse)?;
+        let parser = selection.parser();
+        let mapping = self
+            .mappings
+            .for_parser(parser.id())
+            .map_err(from_mapping)?;
+        let configuration_hash = self.configuration_hash_for(
+            persisted,
+            parser.id(),
+            parser.version(),
+            mapping.id(),
+            mapping.version(),
+        );
+        let logical_key = self.logical_key_for(
+            persisted,
+            parser.id(),
+            parser.version(),
+            mapping.id(),
+            mapping.version(),
+        );
+        Ok(DerivationIdentity {
+            logical_key,
+            parser_id: parser.id().to_string(),
+            parser_version: parser.version().to_string(),
+            mapping_id: mapping.id().to_string(),
+            mapping_version: mapping.version().to_string(),
+            ocsf_version: OCSF_VERSION.to_string(),
+            pipeline_version: self.config.pipeline_version.clone(),
+            configuration_hash,
+            execution_mode: self.config.execution_mode,
+        })
     }
 
     pub fn normalize(
@@ -226,24 +346,7 @@ impl NormalizerCore {
         raw: &[u8],
     ) -> Result<NormalizationPlan, NormalizerError> {
         validate_handoff(incoming, persisted)?;
-        if u64::try_from(raw.len()).map_err(|_| invalid("raw byte length exceeds uint64"))?
-            != persisted.raw_size
-        {
-            return Err(NormalizerError {
-                code: "CER-NORM-RAW-LENGTH",
-                message: "Raw Store byte length does not match RawEventPersisted.raw_size"
-                    .to_string(),
-                retryable: false,
-            });
-        }
-        let raw_hash = sha256_lower_hex(raw);
-        if raw_hash != persisted.raw_hash {
-            return Err(NormalizerError {
-                code: "CER-NORM-RAW-HASH",
-                message: "Raw Store SHA-256 does not match RawEventPersisted.raw_hash".to_string(),
-                retryable: false,
-            });
-        }
+        validate_raw_bytes(persisted, raw)?;
 
         let input = ParserInput {
             raw,
@@ -314,6 +417,20 @@ impl NormalizerCore {
             .map_err(from_mapping)?;
         let canonical_ocsf_json = canonical_json_bytes(&mapped.ocsf_event);
         let normalized_hash = canonical_json_hash(&mapped.ocsf_event);
+        let configuration_hash = self.configuration_hash_for(
+            persisted,
+            &parsed.parser_id,
+            &parsed.parser_version,
+            &mapped.mapping_id,
+            &mapped.mapping_version,
+        );
+        let logical_key = self.logical_key_for(
+            persisted,
+            &parsed.parser_id,
+            &parsed.parser_version,
+            &mapped.mapping_id,
+            &mapped.mapping_version,
+        );
 
         let normalized_event_id = self.ids.new_uuid_v7()?;
         let transformation_id = self.ids.new_uuid_v7()?;
@@ -349,7 +466,7 @@ impl NormalizerCore {
             output_object_type: "NormalizedEvent".to_string(),
             component: format!("cerbero-normalizer:{}", mapped.mapping_id),
             component_version: mapped.mapping_version.clone(),
-            configuration_hash: self.configuration_hash_for(persisted),
+            configuration_hash,
             started_at: Some(normalized_at),
             completed_at: Some(normalized_at),
             status: TransformationStatus::Success as i32,
@@ -363,7 +480,7 @@ impl NormalizerCore {
         })?;
 
         Ok(NormalizationPlan {
-            logical_key: self.logical_key(persisted),
+            logical_key,
             resolved_event_time: event_time.event_time,
             mapping_id: mapped.mapping_id,
             mapping_version: mapped.mapping_version,
@@ -372,6 +489,27 @@ impl NormalizerCore {
             transformation,
         })
     }
+}
+
+fn validate_raw_bytes(persisted: &RawEventPersisted, raw: &[u8]) -> Result<(), NormalizerError> {
+    if u64::try_from(raw.len()).map_err(|_| invalid("raw byte length exceeds uint64"))?
+        != persisted.raw_size
+    {
+        return Err(NormalizerError {
+            code: "CER-NORM-RAW-LENGTH",
+            message: "Raw Store byte length does not match RawEventPersisted.raw_size".to_string(),
+            retryable: false,
+        });
+    }
+    let raw_hash = sha256_lower_hex(raw);
+    if raw_hash != persisted.raw_hash {
+        return Err(NormalizerError {
+            code: "CER-NORM-RAW-HASH",
+            message: "Raw Store SHA-256 does not match RawEventPersisted.raw_hash".to_string(),
+            retryable: false,
+        });
+    }
+    Ok(())
 }
 
 fn validate_handoff(
@@ -620,6 +758,61 @@ mod tests {
         assert_ne!(
             live.logical_key(&persisted),
             next_pipeline.logical_key(&persisted)
+        );
+    }
+
+    #[test]
+    fn parser_v2_creates_a_distinct_historical_derivation_without_rewriting_v1() {
+        let raw = b"Failed password for invalid user admin from 10.0.0.8 port 50341 ssh2";
+        let persisted = persisted(raw);
+        let config = NormalizerCoreConfig {
+            pipeline_version: "normalizer-v1".to_string(),
+            execution_mode: ExecutionMode::Live,
+        };
+        let clock = Timestamp {
+            seconds: 1_789_000_002,
+            nanos: 0,
+        };
+
+        let mut v1 = NormalizerCore::new_with_linux_sshd_version(
+            config.clone(),
+            crate::LINUX_SSHD_PARSER_VERSION,
+            Box::new(FixedClock(clock)),
+            Box::new(FixedIdGenerator::new([
+                "01995000-0000-7000-8000-000000000020".to_string(),
+                "01995000-0000-7000-8000-000000000021".to_string(),
+            ])),
+        )
+        .unwrap();
+        let mut v2 = NormalizerCore::new_with_linux_sshd_version(
+            config,
+            crate::LINUX_SSHD_PARSER_V2_VERSION,
+            Box::new(FixedClock(clock)),
+            Box::new(FixedIdGenerator::new([
+                "01995000-0000-7000-8000-000000000022".to_string(),
+                "01995000-0000-7000-8000-000000000023".to_string(),
+            ])),
+        )
+        .unwrap();
+
+        let n1 = v1.normalize(&envelope(), &persisted, raw).unwrap();
+        let n2 = v2.normalize(&envelope(), &persisted, raw).unwrap();
+
+        assert_eq!(
+            n1.normalized_event.raw_event_id,
+            n2.normalized_event.raw_event_id
+        );
+        assert_eq!(n1.normalized_event.parser_version, "1");
+        assert_eq!(n2.normalized_event.parser_version, "2");
+        assert_eq!(n1.logical_key, v1.logical_key(&persisted));
+        assert_ne!(n1.logical_key, n2.logical_key);
+        assert_ne!(
+            n1.normalized_event.normalized_hash,
+            n2.normalized_event.normalized_hash
+        );
+        assert_ne!(
+            n1.normalized_event.normalized_event_id,
+            n2.normalized_event.normalized_event_id
         );
     }
 

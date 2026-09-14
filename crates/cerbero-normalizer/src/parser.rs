@@ -10,6 +10,7 @@ use crate::parser_formats::{
 
 pub const LINUX_SSHD_PARSER_ID: &str = "linux/sshd";
 pub const LINUX_SSHD_PARSER_VERSION: &str = "1";
+pub const LINUX_SSHD_PARSER_V2_VERSION: &str = "2";
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ParserTier {
@@ -234,15 +235,31 @@ pub struct ParserRegistry {
 impl ParserRegistry {
     #[must_use]
     pub fn with_defaults() -> Self {
-        Self {
+        Self::with_linux_sshd_version(LINUX_SSHD_PARSER_VERSION)
+            .expect("governed default linux/sshd parser version must be registered")
+    }
+
+    pub fn with_linux_sshd_version(version: &str) -> Result<Self, ParseError> {
+        let linux_sshd: Box<dyn Parser> = match version {
+            LINUX_SSHD_PARSER_VERSION => Box::new(LinuxSshdParser),
+            LINUX_SSHD_PARSER_V2_VERSION => Box::new(LinuxSshdParserV2),
+            other => {
+                return Err(ParseError {
+                    code: "CER-PARSE-UNSUPPORTED-VERSION",
+                    message: format!("unsupported governed linux/sshd parser version {other}"),
+                    retryable: false,
+                });
+            }
+        };
+        Ok(Self {
             parsers: vec![
-                Box::new(LinuxSshdParser),
+                linux_sshd,
                 Box::new(JournaldCanonicalParser),
                 Box::new(SyslogRfc5424Parser),
                 Box::new(SyslogRfc3164Parser),
                 Box::new(GenericJsonParser),
             ],
-        }
+        })
     }
 
     pub fn register(&mut self, parser: Box<dyn Parser>) {
@@ -386,8 +403,19 @@ fn probe_parser(parser: &dyn Parser, input: &ParserInput<'_>) -> Result<u8, Pars
     })
 }
 
+const LINUX_SSHD_LIMITS: ParserLimits = ParserLimits {
+    max_input_bytes: 65_536,
+    max_depth: 8,
+    max_fields: 64,
+    max_string_bytes: 65_536,
+    max_collection_length: 64,
+};
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LinuxSshdParser;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LinuxSshdParserV2;
 
 impl Parser for LinuxSshdParser {
     fn id(&self) -> &'static str {
@@ -403,51 +431,98 @@ impl Parser for LinuxSshdParser {
     }
 
     fn limits(&self) -> ParserLimits {
-        ParserLimits {
-            max_input_bytes: 65_536,
-            max_depth: 8,
-            max_fields: 64,
-            max_string_bytes: 65_536,
-            max_collection_length: 64,
-        }
+        LINUX_SSHD_LIMITS
     }
 
     fn probe(&self, input: &ParserInput<'_>) -> u8 {
-        let Ok(text) = std::str::from_utf8(input.raw) else {
-            return 0;
-        };
-        let text = text.trim();
-        if text.contains("Failed password for ")
-            && text.contains(" from ")
-            && text.contains(" port ")
-        {
-            100
-        } else {
-            0
-        }
+        probe_failed_password(input.raw)
     }
 
     fn parse(&self, input: &ParserInput<'_>) -> Result<ParsedEvent, ParseError> {
-        if input.raw.len() > self.limits().max_input_bytes {
-            return Err(ParseError {
-                code: "CER-PARSE-LIMIT-EXCEEDED",
-                message: format!(
-                    "linux/sshd input exceeds {} bytes",
-                    self.limits().max_input_bytes
-                ),
-                retryable: false,
-            });
-        }
-        let text = std::str::from_utf8(input.raw).map_err(|error| ParseError {
-            code: "CER-PARSE-MALFORMED",
-            message: format!("linux/sshd v1 requires UTF-8 input: {error}"),
-            retryable: false,
-        })?;
-        parse_failed_password(text.trim())
+        parse_linux_sshd(
+            input,
+            LINUX_SSHD_PARSER_VERSION,
+            InvalidUserMessagePolicy::LegacyUserLabel,
+        )
     }
 }
 
-fn parse_failed_password(text: &str) -> Result<ParsedEvent, ParseError> {
+impl Parser for LinuxSshdParserV2 {
+    fn id(&self) -> &'static str {
+        LINUX_SSHD_PARSER_ID
+    }
+
+    fn version(&self) -> &'static str {
+        LINUX_SSHD_PARSER_V2_VERSION
+    }
+
+    fn tier(&self) -> ParserTier {
+        ParserTier::SourceSpecific
+    }
+
+    fn limits(&self) -> ParserLimits {
+        LINUX_SSHD_LIMITS
+    }
+
+    fn probe(&self, input: &ParserInput<'_>) -> u8 {
+        probe_failed_password(input.raw)
+    }
+
+    fn parse(&self, input: &ParserInput<'_>) -> Result<ParsedEvent, ParseError> {
+        parse_linux_sshd(
+            input,
+            LINUX_SSHD_PARSER_V2_VERSION,
+            InvalidUserMessagePolicy::PreserveInvalidUserLabel,
+        )
+    }
+}
+
+#[derive(Clone, Copy)]
+enum InvalidUserMessagePolicy {
+    LegacyUserLabel,
+    PreserveInvalidUserLabel,
+}
+
+fn probe_failed_password(raw: &[u8]) -> u8 {
+    let Ok(text) = std::str::from_utf8(raw) else {
+        return 0;
+    };
+    let text = text.trim();
+    if text.contains("Failed password for ") && text.contains(" from ") && text.contains(" port ") {
+        100
+    } else {
+        0
+    }
+}
+
+fn parse_linux_sshd(
+    input: &ParserInput<'_>,
+    parser_version: &'static str,
+    message_policy: InvalidUserMessagePolicy,
+) -> Result<ParsedEvent, ParseError> {
+    if input.raw.len() > LINUX_SSHD_LIMITS.max_input_bytes {
+        return Err(ParseError {
+            code: "CER-PARSE-LIMIT-EXCEEDED",
+            message: format!(
+                "linux/sshd input exceeds {} bytes",
+                LINUX_SSHD_LIMITS.max_input_bytes
+            ),
+            retryable: false,
+        });
+    }
+    let text = std::str::from_utf8(input.raw).map_err(|error| ParseError {
+        code: "CER-PARSE-MALFORMED",
+        message: format!("linux/sshd v{parser_version} requires UTF-8 input: {error}"),
+        retryable: false,
+    })?;
+    parse_failed_password(text.trim(), parser_version, message_policy)
+}
+
+fn parse_failed_password(
+    text: &str,
+    parser_version: &'static str,
+    message_policy: InvalidUserMessagePolicy,
+) -> Result<ParsedEvent, ParseError> {
     let marker = "Failed password for ";
     let Some(after_prefix) = text.find(marker).map(|index| &text[index + marker.len()..]) else {
         return malformed("missing 'Failed password for' marker");
@@ -472,11 +547,17 @@ fn parse_failed_password(text: &str) -> Result<ParsedEvent, ParseError> {
     if username.is_empty() || source_ip.is_empty() {
         return malformed("username and source address are required");
     }
-    let message = format!("SSH authentication failed for user {username} from {source_ip}");
+    let identity_label = match (invalid_user, message_policy) {
+        (true, InvalidUserMessagePolicy::PreserveInvalidUserLabel) => {
+            format!("invalid user {username}")
+        }
+        _ => format!("user {username}"),
+    };
+    let message = format!("SSH authentication failed for {identity_label} from {source_ip}");
 
     Ok(ParsedEvent {
         parser_id: LINUX_SSHD_PARSER_ID.to_string(),
-        parser_version: LINUX_SSHD_PARSER_VERSION.to_string(),
+        parser_version: parser_version.to_string(),
         source_event_type: "linux.ssh.authentication".to_string(),
         fields: ParsedValue::object([
             ("username", ParsedValue::String(username.to_string())),
@@ -530,6 +611,28 @@ mod tests {
         assert_eq!(parsed.u64_field("source_port"), Some(50341));
         assert_eq!(parsed.bool_field("invalid_user"), Some(true));
         assert_eq!(parsed.bool_field("authentication_succeeded"), Some(false));
+    }
+
+    #[test]
+    fn sshd_v2_preserves_invalid_user_semantics_and_version() {
+        let persisted = RawEventPersisted::default();
+        let raw = b"Failed password for invalid user admin from 10.0.0.8 port 50341 ssh2";
+        let parsed = LinuxSshdParserV2.parse(&input(raw, &persisted)).unwrap();
+        assert_eq!(parsed.parser_id, LINUX_SSHD_PARSER_ID);
+        assert_eq!(parsed.parser_version, LINUX_SSHD_PARSER_V2_VERSION);
+        assert_eq!(
+            parsed.string_field("message"),
+            Some("SSH authentication failed for invalid user admin from 10.0.0.8")
+        );
+    }
+
+    #[test]
+    fn registry_rejects_unknown_governed_sshd_version() {
+        let Err(error) = ParserRegistry::with_linux_sshd_version("999") else {
+            panic!("unknown governed parser version unexpectedly succeeded");
+        };
+        assert_eq!(error.code, "CER-PARSE-UNSUPPORTED-VERSION");
+        assert!(!error.retryable);
     }
 
     #[test]
