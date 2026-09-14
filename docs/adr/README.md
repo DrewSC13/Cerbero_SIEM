@@ -26,4 +26,6 @@ Current accepted ADRs:
 - ADR-0009 — RawEventPersisted v1 payload closure;
 - ADR-0010 — Raw Segment Manifest v1;
 - ADR-0011 — first OCSF normalization vertical;
-- ADR-0012 — journald canonical raw representation v1.
+- ADR-0012 — journald canonical raw representation v1;
+- ADR-0013 — normalization DLQ record v1;
+- ADR-0014 — Source timestamp policy v1.

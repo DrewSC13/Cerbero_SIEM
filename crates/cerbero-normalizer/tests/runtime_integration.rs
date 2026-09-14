@@ -9,8 +9,9 @@ use cerbero_common::contracts::v1::{
     CerberoEnvelope, ExecutionMode, IntegrityStatus, Producer, RawEventPersisted,
 };
 use cerbero_normalizer::{
-    ANALYTICS_STREAM_NAME, NORMALIZED_CREATED_SUBJECT, NORMALIZER_CONSUMER_NAME,
-    RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, RuntimeConfig,
+    ANALYTICS_STREAM_NAME, DLQ_STREAM_NAME, GENERIC_JSON_PARSER_ID, NORMALIZATION_DLQ_SUBJECT,
+    NORMALIZED_CREATED_SUBJECT, NORMALIZER_CONSUMER_NAME, NormalizationDeadLetter,
+    RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, RuntimeConfig, SourceTimePolicyRegistry,
 };
 use futures_util::StreamExt;
 use prost::Message as _;
@@ -42,6 +43,7 @@ async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
         instance_id: format!("normalizer-integration-{}", Uuid::now_v7()),
         pipeline_version: "normalizer-v1-integration".to_string(),
         execution_mode: ExecutionMode::Live,
+        source_time_policies: SourceTimePolicyRegistry::default(),
         raw_store_path: root.path().to_path_buf(),
         clickhouse_url: format!(
             "http://{}:{}",
@@ -70,6 +72,20 @@ async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
         .await
         .unwrap();
     detection.flush().await.unwrap();
+
+    let admin_observer = async_nats::ConnectOptions::with_user_and_password(
+        env("NATS_ADMIN_USER"),
+        env("NATS_ADMIN_PASSWORD"),
+    )
+    .name("normalizer-integration-dlq-observer")
+    .connect(&nats_url)
+    .await
+    .unwrap();
+    let mut dead_letters = admin_observer
+        .subscribe(NORMALIZATION_DLQ_SUBJECT)
+        .await
+        .unwrap();
+    admin_observer.flush().await.unwrap();
 
     let raw_preserver = async_nats::ConnectOptions::with_user_and_password(
         env("NATS_RAW_PRESERVER_USER"),
@@ -113,6 +129,59 @@ async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
         "duplicate logical input created multiple stored normalized.created messages"
     );
 
+    let malformed_event_id = Uuid::now_v7().to_string();
+    let malformed_raw = br#"{"event":"login","source":"integration"}"#;
+    let malformed_path = root.path().join(format!(
+        "tenant-dev/2026/09/13/22/{malformed_event_id}/raw.bin"
+    ));
+    fs::create_dir_all(malformed_path.parent().unwrap()).unwrap();
+    fs::write(&malformed_path, malformed_raw).unwrap();
+
+    let malformed_envelope = raw_persisted_envelope_with(
+        &malformed_event_id,
+        malformed_raw,
+        "application/json",
+        "integration-json",
+    );
+    let malformed_wire = malformed_envelope.encode_to_vec();
+    let malformed_sequence =
+        publish_raw_persisted(&raw_js, &malformed_wire, Uuid::now_v7().to_string()).await;
+
+    let dead_letter_message = tokio::time::timeout(Duration::from_secs(5), dead_letters.next())
+        .await
+        .expect("normalization DLQ timeout")
+        .expect("normalization DLQ subscription ended");
+    let dead_letter: NormalizationDeadLetter =
+        serde_json::from_slice(dead_letter_message.payload.as_ref()).unwrap();
+    assert_eq!(dead_letter.schema_version, "cerbero.normalization_dlq.v1");
+    assert_eq!(
+        dead_letter.original_message_id.as_deref(),
+        Some(malformed_envelope.message_id.as_str())
+    );
+    assert_eq!(
+        dead_letter.raw_event_id.as_deref(),
+        Some(malformed_event_id.as_str())
+    );
+    assert_eq!(
+        dead_letter.parser_id.as_deref(),
+        Some(GENERIC_JSON_PARSER_ID)
+    );
+    assert_eq!(dead_letter.parser_version.as_deref(), Some("1"));
+    assert_eq!(dead_letter.error_code, "CER-NORM-MAPPING-UNSUPPORTED");
+    assert_eq!(dead_letter.failure_stage, "mapping");
+    assert!(!dead_letter.retryable);
+    wait_for_normalizer_ack(&nats_url, malformed_sequence).await;
+    assert_eq!(clickhouse_count(&config, &malformed_event_id).await, 0);
+
+    let duplicate_malformed_sequence =
+        publish_raw_persisted(&raw_js, &malformed_wire, Uuid::now_v7().to_string()).await;
+    wait_for_normalizer_ack(&nats_url, duplicate_malformed_sequence).await;
+    assert_eq!(
+        dlq_subject_count(&nats_url).await,
+        1,
+        "duplicate logical dead letter created multiple stored DLQ records"
+    );
+
     shutdown_tx.send(true).unwrap();
     let runtime_result = tokio::time::timeout(Duration::from_secs(5), runtime)
         .await
@@ -147,6 +216,13 @@ async fn isolate_test_streams(nats_url: &str) {
     analytics_stream
         .purge()
         .filter(NORMALIZED_CREATED_SUBJECT)
+        .await
+        .unwrap();
+
+    let dlq_stream = jetstream.get_stream(DLQ_STREAM_NAME).await.unwrap();
+    dlq_stream
+        .purge()
+        .filter(NORMALIZATION_DLQ_SUBJECT)
         .await
         .unwrap();
 }
@@ -191,6 +267,25 @@ async fn normalized_subject_count(nats_url: &str) -> usize {
     count
 }
 
+async fn dlq_subject_count(nats_url: &str) -> usize {
+    let jetstream = admin_jetstream(nats_url, "normalizer-integration-dlq-stream-observer").await;
+    let dlq_stream = jetstream.get_stream(DLQ_STREAM_NAME).await.unwrap();
+    let mut subjects = dlq_stream
+        .info_with_subjects(NORMALIZATION_DLQ_SUBJECT)
+        .await
+        .unwrap();
+    let mut count = 0_usize;
+
+    while let Some(entry) = subjects.next().await {
+        let (subject, messages) = entry.unwrap();
+        if subject == NORMALIZATION_DLQ_SUBJECT {
+            count += messages;
+        }
+    }
+
+    count
+}
+
 async fn publish_raw_persisted(
     js: &async_nats::jetstream::Context,
     wire: &[u8],
@@ -211,6 +306,15 @@ async fn publish_raw_persisted(
 }
 
 fn raw_persisted_envelope(event_id: &str, raw: &[u8]) -> CerberoEnvelope {
+    raw_persisted_envelope_with(event_id, raw, "text/plain", "integration-sshd")
+}
+
+fn raw_persisted_envelope_with(
+    event_id: &str,
+    raw: &[u8],
+    content_type: &str,
+    source_id: &str,
+) -> CerberoEnvelope {
     let ingest = Timestamp {
         seconds: 1_789_315_200,
         nanos: 0,
@@ -218,11 +322,11 @@ fn raw_persisted_envelope(event_id: &str, raw: &[u8]) -> CerberoEnvelope {
     let persisted = RawEventPersisted {
         event_id: event_id.to_string(),
         tenant_id: "tenant-dev".to_string(),
-        source_id: "integration-sshd".to_string(),
+        source_id: source_id.to_string(),
         sensor_id: "integration-sensor".to_string(),
         event_time: Some(ingest),
         ingest_time: Some(ingest),
-        content_type: "text/plain".to_string(),
+        content_type: content_type.to_string(),
         encoding: "utf-8".to_string(),
         raw_size: u64::try_from(raw.len()).expect("integration raw length fits u64"),
         raw_hash_algorithm: "sha256".to_string(),

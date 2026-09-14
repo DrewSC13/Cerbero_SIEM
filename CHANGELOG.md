@@ -6,6 +6,7 @@ All notable project changes are recorded here. CERBERO uses immutable release ta
 
 ### Added
 
+- Milestone 4 normalizer runtime governance with durable-before-Term normalization DLQ records, backend-neutral parse/normalization metrics, deterministic retry jitter, and explicit per-Source timestamp policy with provenance-preserving RFC3164 resolution.
 - Milestone 4 governed parser expansion with typed generic JSON, RFC3164/RFC5424 syslog, journald canonical v1, explainable tiered selection, timestamp-candidate provenance, parser safety limits, panic containment, and golden/malformed fixtures without introducing false OCSF mappings.
 - Milestone 4 durable Rust normalizer runtime for `raw.persisted` → verified Raw Store read → ClickHouse → `normalized.created`, with least-privilege JetStream consumption, stable publication identity, and duplicate-safe integration coverage.
 - Milestone 4 governed first OCSF normalization vertical with versioned `linux/sshd@1` parsing, `linux.ssh.authentication@1` mapping, pinned OCSF 1.9.0 semantics, canonical normalized hashing, provenance, and explicit LIVE/REPLAY/TEST derivation identity.

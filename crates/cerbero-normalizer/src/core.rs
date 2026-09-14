@@ -1,10 +1,11 @@
 use std::collections::VecDeque;
 use std::fmt;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use cerbero_common::contracts::v1::{
-    CerberoEnvelope, ExecutionMode, NormalizedEvent, RawEventPersisted, Transformation,
-    TransformationStatus,
+    CerberoEnvelope, ExecutionMode, NormalizationStatus, NormalizedEvent, RawEventPersisted,
+    Transformation, TransformationStatus,
 };
 use cerbero_common::contracts::{
     sha256_lower_hex, validate_normalized_event, validate_transformation,
@@ -14,7 +15,11 @@ use serde_json::Value;
 
 use crate::canonical::{canonical_json_bytes, canonical_json_hash};
 use crate::mapping::{MappingRegistry, OCSF_VERSION};
-use crate::parser::{ParserInput, ParserRegistry};
+use crate::metrics::{
+    NoopNormalizerMetrics, NormalizationMetricStatus, NormalizerMetrics, ParseMetricStatus,
+};
+use crate::parser::{ParserInput, ParserRegistry, ParsingStatus};
+use crate::source_time::{SourceTimeError, SourceTimePolicyRegistry};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NormalizerError {
@@ -119,6 +124,7 @@ impl NormalizerCoreConfig {
 #[derive(Clone, Debug)]
 pub struct NormalizationPlan {
     pub logical_key: String,
+    pub resolved_event_time: Option<Timestamp>,
     pub mapping_id: String,
     pub mapping_version: String,
     pub canonical_ocsf_json: Vec<u8>,
@@ -130,6 +136,8 @@ pub struct NormalizerCore {
     config: NormalizerCoreConfig,
     parsers: ParserRegistry,
     mappings: MappingRegistry,
+    source_time_policies: SourceTimePolicyRegistry,
+    metrics: Arc<dyn NormalizerMetrics>,
     clock: Box<dyn Clock>,
     ids: Box<dyn IdGenerator>,
 }
@@ -150,9 +158,50 @@ impl NormalizerCore {
             config,
             parsers: ParserRegistry::with_defaults(),
             mappings: MappingRegistry::with_defaults(),
+            source_time_policies: SourceTimePolicyRegistry::default(),
+            metrics: Arc::new(NoopNormalizerMetrics),
             clock,
             ids,
         })
+    }
+
+    pub fn set_source_time_policies(&mut self, policies: SourceTimePolicyRegistry) {
+        self.source_time_policies = policies;
+    }
+
+    pub fn set_metrics(&mut self, metrics: Arc<dyn NormalizerMetrics>) {
+        self.metrics = metrics;
+    }
+
+    pub fn parser_identity(
+        &self,
+        persisted: &RawEventPersisted,
+        raw: &[u8],
+    ) -> Result<(String, String), NormalizerError> {
+        let input = ParserInput {
+            raw,
+            persisted,
+            configured_parser_id: None,
+        };
+        let selection = self.parsers.select(&input).map_err(from_parse)?;
+        Ok((
+            selection.parser().id().to_string(),
+            selection.parser().version().to_string(),
+        ))
+    }
+
+    fn configuration_hash_for(&self, persisted: &RawEventPersisted) -> String {
+        let base = self.config.configuration_hash();
+        if persisted.event_time.is_some() {
+            return base;
+        }
+        self.source_time_policies
+            .policy_canonical(&persisted.source_id)
+            .map_or(base.clone(), |policy| {
+                sha256_lower_hex(
+                    format!("base_configuration={base}\nsource_time_policy={policy}\n").as_bytes(),
+                )
+            })
     }
 
     #[must_use]
@@ -163,7 +212,7 @@ impl NormalizerCore {
                 persisted.event_id,
                 OCSF_VERSION,
                 self.config.pipeline_version,
-                self.config.configuration_hash(),
+                self.configuration_hash_for(persisted),
                 self.config.execution_mode.as_str_name()
             )
             .as_bytes(),
@@ -201,15 +250,67 @@ impl NormalizerCore {
             persisted,
             configured_parser_id: None,
         };
-        let parsed = self.parsers.parse(&input).map_err(from_parse)?;
+        let parse_started = Instant::now();
+        let parsed = match self.parsers.parse(&input) {
+            Ok(parsed) => {
+                self.metrics.record_parse(
+                    parse_metric_status(&parsed.status),
+                    Some(&parsed.parser_id),
+                    parse_started.elapsed(),
+                );
+                parsed
+            }
+            Err(error) => {
+                let status = if error.code == "CER-PARSE-NO-MATCH" {
+                    ParseMetricStatus::Unsupported
+                } else {
+                    ParseMetricStatus::Failed
+                };
+                self.metrics
+                    .record_parse(status, None, parse_started.elapsed());
+                return Err(from_parse(error));
+            }
+        };
+        let normalization_started = Instant::now();
+        let result = self.build_normalization_plan(persisted, &parsed);
+
+        match &result {
+            Ok(plan) => {
+                let status =
+                    NormalizationStatus::try_from(plan.normalized_event.normalization_status)
+                        .unwrap_or(NormalizationStatus::Unspecified);
+                self.metrics.record_normalization(
+                    normalization_metric_status(status),
+                    Some(&plan.mapping_id),
+                    normalization_started.elapsed(),
+                );
+            }
+            Err(_) => self.metrics.record_normalization(
+                NormalizationMetricStatus::Failed,
+                None,
+                normalization_started.elapsed(),
+            ),
+        }
+        result
+    }
+
+    fn build_normalization_plan(
+        &mut self,
+        persisted: &RawEventPersisted,
+        parsed: &crate::parser::ParsedEvent,
+    ) -> Result<NormalizationPlan, NormalizerError> {
         let mapping = self
             .mappings
             .for_parser(&parsed.parser_id)
             .map_err(from_mapping)?;
+        let event_time = self
+            .source_time_policies
+            .resolve(persisted, parsed)
+            .map_err(from_source_time)?;
         let normalized_at = self.clock.now()?;
         let normalized_at_millis = timestamp_to_unix_millis(&normalized_at)?;
         let mapped = mapping
-            .map(&parsed, persisted, normalized_at_millis)
+            .map(parsed, persisted, &event_time, normalized_at_millis)
             .map_err(from_mapping)?;
         let canonical_ocsf_json = canonical_json_bytes(&mapped.ocsf_event);
         let normalized_hash = canonical_json_hash(&mapped.ocsf_event);
@@ -248,7 +349,7 @@ impl NormalizerCore {
             output_object_type: "NormalizedEvent".to_string(),
             component: format!("cerbero-normalizer:{}", mapped.mapping_id),
             component_version: mapped.mapping_version.clone(),
-            configuration_hash: self.config.configuration_hash(),
+            configuration_hash: self.configuration_hash_for(persisted),
             started_at: Some(normalized_at),
             completed_at: Some(normalized_at),
             status: TransformationStatus::Success as i32,
@@ -263,6 +364,7 @@ impl NormalizerCore {
 
         Ok(NormalizationPlan {
             logical_key: self.logical_key(persisted),
+            resolved_event_time: event_time.event_time,
             mapping_id: mapped.mapping_id,
             mapping_version: mapped.mapping_version,
             canonical_ocsf_json,
@@ -318,6 +420,33 @@ fn from_mapping(error: crate::mapping::MappingError) -> NormalizerError {
         code: error.code,
         message: error.message,
         retryable: error.retryable,
+    }
+}
+
+fn from_source_time(error: SourceTimeError) -> NormalizerError {
+    NormalizerError {
+        code: "CER-NORM-SOURCE-TIME-POLICY",
+        message: error.message,
+        retryable: false,
+    }
+}
+
+fn parse_metric_status(status: &ParsingStatus) -> ParseMetricStatus {
+    match status {
+        ParsingStatus::Success => ParseMetricStatus::Success,
+        ParsingStatus::Partial => ParseMetricStatus::Partial,
+        ParsingStatus::Failed => ParseMetricStatus::Failed,
+        ParsingStatus::Unsupported => ParseMetricStatus::Unsupported,
+    }
+}
+
+fn normalization_metric_status(status: NormalizationStatus) -> NormalizationMetricStatus {
+    match status {
+        NormalizationStatus::Success => NormalizationMetricStatus::Success,
+        NormalizationStatus::Partial => NormalizationMetricStatus::Partial,
+        NormalizationStatus::Failed | NormalizationStatus::Unspecified => {
+            NormalizationMetricStatus::Failed
+        }
     }
 }
 

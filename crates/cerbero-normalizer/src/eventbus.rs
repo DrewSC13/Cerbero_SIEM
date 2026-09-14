@@ -7,14 +7,19 @@ use prost::Message as _;
 use prost_types::Any;
 
 use cerbero_common::contracts::v1::{CerberoEnvelope, Producer, RawEventPersisted};
-use cerbero_common::contracts::{validate_envelope, validate_raw_event_persisted};
+use cerbero_common::contracts::{
+    sha256_lower_hex, validate_envelope, validate_raw_event_persisted,
+};
 
-use crate::{NormalizerError, StoredNormalization};
+use crate::{NormalizationDeadLetter, NormalizerError, StoredNormalization};
 
 pub const RAW_STREAM_NAME: &str = "CERBERO_RAW";
 pub const ANALYTICS_STREAM_NAME: &str = "CERBERO_ANALYTICS";
+pub const DLQ_STREAM_NAME: &str = "CERBERO_DLQ";
 pub const RAW_PERSISTED_SUBJECT: &str = "cerbero.v1.raw.persisted";
 pub const NORMALIZED_CREATED_SUBJECT: &str = "cerbero.v1.normalized.created";
+pub const NORMALIZATION_DLQ_SUBJECT: &str = "cerbero.v1.dlq.normalization";
+pub const DLQ_SCHEMA_HEADER: &str = "Cerbero-DLQ-Schema";
 pub const NORMALIZER_CONSUMER_NAME: &str = "normalizer";
 pub const REQUEST_ID_HEADER: &str = "Cerbero-Request-Id";
 const NATS_MESSAGE_ID_HEADER: &str = "Nats-Msg-Id";
@@ -130,6 +135,41 @@ impl EventBus {
         }
         Ok(())
     }
+
+    pub async fn publish_normalization_dlq(
+        &self,
+        record: &NormalizationDeadLetter,
+    ) -> Result<(), NormalizerError> {
+        let bytes = serde_json::to_vec(record).map_err(|error| NormalizerError {
+            code: "CER-NORM-DLQ-ENCODE",
+            message: error.to_string(),
+            retryable: false,
+        })?;
+        let mut headers = HeaderMap::new();
+        headers.insert(NATS_MESSAGE_ID_HEADER, record.nats_message_id());
+        headers.insert(DLQ_SCHEMA_HEADER, record.schema_version.clone());
+        if let Some(request_id) = record.request_id.as_ref() {
+            headers.insert(REQUEST_ID_HEADER, request_id.clone());
+        }
+        let ack = self
+            .jetstream
+            .publish_with_headers(NORMALIZATION_DLQ_SUBJECT, headers, bytes.into())
+            .await
+            .map_err(transport_error)?
+            .await
+            .map_err(transport_error)?;
+        if ack.stream != DLQ_STREAM_NAME || ack.sequence == 0 {
+            return Err(NormalizerError {
+                code: "CER-NORM-DLQ-PUBLISH-ACK",
+                message: format!(
+                    "unexpected normalization DLQ PubAck stream={} sequence={}",
+                    ack.stream, ack.sequence
+                ),
+                retryable: true,
+            });
+        }
+        Ok(())
+    }
 }
 
 pub fn decode_raw_persisted(
@@ -216,10 +256,43 @@ pub fn retry_delay(deliveries: i64, min: Duration, max: Duration) -> Duration {
     min.saturating_mul(factor).min(max)
 }
 
+#[must_use]
+pub fn retry_delay_with_jitter(
+    deliveries: i64,
+    min: Duration,
+    max: Duration,
+    seed: &str,
+) -> Duration {
+    let base = retry_delay(deliveries, min, max);
+    let digest = sha256_lower_hex(format!("{seed}:{deliveries}").as_bytes());
+    let sample = u64::from_str_radix(&digest[..16], 16).unwrap_or(0);
+    let percentage = 80_u128 + u128::from(sample % 41);
+    let nanos = base.as_nanos().saturating_mul(percentage) / 100;
+    Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
+        .max(min)
+        .min(max)
+}
+
 fn transport_error(error: impl std::fmt::Display) -> NormalizerError {
     NormalizerError {
         code: "CER-NORM-NATS-UNAVAILABLE",
         message: error.to_string(),
         retryable: true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn jitter_is_deterministic_bounded_and_not_below_minimum() {
+        let min = Duration::from_secs(1);
+        let max = Duration::from_secs(30);
+        let first = retry_delay_with_jitter(3, min, max, "message-a");
+        let second = retry_delay_with_jitter(3, min, max, "message-a");
+        assert_eq!(first, second);
+        assert!(first >= min);
+        assert!(first <= max);
     }
 }

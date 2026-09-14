@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use cerbero_common::contracts::v1::ExecutionMode;
 
-use crate::NormalizerError;
+use crate::{NormalizerError, SourceTimePolicyRegistry};
 
 #[derive(Clone, Debug)]
 pub struct RuntimeConfig {
@@ -15,6 +15,7 @@ pub struct RuntimeConfig {
     pub instance_id: String,
     pub pipeline_version: String,
     pub execution_mode: ExecutionMode,
+    pub source_time_policies: SourceTimePolicyRegistry,
     pub raw_store_path: PathBuf,
     pub clickhouse_url: String,
     pub clickhouse_database: String,
@@ -55,6 +56,10 @@ impl RuntimeConfig {
             instance_id: required("CERBERO_NORMALIZER_INSTANCE_ID")?,
             pipeline_version: required("CERBERO_NORMALIZER_PIPELINE_VERSION")?,
             execution_mode,
+            source_time_policies: SourceTimePolicyRegistry::parse_spec(
+                &env::var("CERBERO_NORMALIZER_SOURCE_TIME_OFFSETS").unwrap_or_default(),
+            )
+            .map_err(|error| config_error(&error.message))?,
             raw_store_path: PathBuf::from(required("CERBERO_RAW_STORE_PATH")?),
             clickhouse_url: format!("http://{host}:{port}"),
             clickhouse_database: required("CLICKHOUSE_DB")?,
@@ -165,6 +170,7 @@ mod tests {
             instance_id: "normalizer-1".to_string(),
             pipeline_version: "normalizer-v1".to_string(),
             execution_mode: ExecutionMode::Live,
+            source_time_policies: SourceTimePolicyRegistry::default(),
             raw_store_path: PathBuf::from("var/raw"),
             clickhouse_url: "http://127.0.0.1:8123".to_string(),
             clickhouse_database: "cerbero".to_string(),
@@ -174,5 +180,15 @@ mod tests {
             retry_max_delay: Duration::from_secs(1),
         };
         assert_eq!(config.validate().unwrap_err().code, "CER-NORM-CONFIG");
+    }
+
+    #[test]
+    fn validate_accepts_governed_source_time_policy_registry() {
+        let policies =
+            SourceTimePolicyRegistry::parse_spec("source-a=-04:00,source-b=+05:30").unwrap();
+        assert_eq!(
+            policies.policy_canonical("source-a").as_deref(),
+            Some("fixed_utc_offset=-04:00;rfc3164_year=nearest_ingest_year")
+        );
     }
 }

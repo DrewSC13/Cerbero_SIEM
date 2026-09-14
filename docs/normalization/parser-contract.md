@@ -68,7 +68,7 @@ Parsers may expose candidate source timestamps but never mutate `ingest_time`.
 - Journald `__REALTIME_TIMESTAMP` and `_SOURCE_REALTIME_TIMESTAMP` are absolute Unix epoch microseconds and require no timezone assumption.
 - Generic JSON only treats top-level `event_time`, `timestamp`, or `@timestamp` as candidates. Absolute RFC3339 strings are high confidence; ambiguous strings or numeric values remain low-confidence candidates with warnings and do not invent a timezone or numeric unit.
 
-Applying a configured source timezone to an ambiguous candidate remains future Source-configuration plumbing. This increment deliberately does not introduce a global normalizer timezone.
+ADR-0014 now governs Source-time resolution for supported ambiguous candidates. The normalizer may apply an explicit per-`source_id` fixed UTC offset and records the assumption; without a matching policy the candidate remains unresolved. No global normalizer timezone exists and UTC is never assumed.
 
 ## Parser safety limits
 

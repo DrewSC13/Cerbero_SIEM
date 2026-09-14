@@ -5,6 +5,7 @@ use cerbero_common::contracts::v1::{NormalizationStatus, RawEventPersisted};
 use serde_json::{Value, json};
 
 use crate::parser::{LINUX_SSHD_PARSER_ID, ParsedEvent};
+use crate::source_time::EventTimeContext;
 
 pub const OCSF_VERSION: &str = "1.9.0";
 pub const LINUX_SSH_AUTH_MAPPING_ID: &str = "linux.ssh.authentication";
@@ -45,6 +46,7 @@ pub trait OcsfMapping: Send + Sync {
         &self,
         parsed: &ParsedEvent,
         persisted: &RawEventPersisted,
+        event_time: &EventTimeContext,
         normalized_at_unix_millis: i64,
     ) -> Result<MappingOutput, MappingError>;
 }
@@ -98,6 +100,7 @@ impl OcsfMapping for SshAuthenticationMapping {
         &self,
         parsed: &ParsedEvent,
         persisted: &RawEventPersisted,
+        event_time: &EventTimeContext,
         normalized_at_unix_millis: i64,
     ) -> Result<MappingOutput, MappingError> {
         if parsed.parser_id != LINUX_SSHD_PARSER_ID
@@ -120,11 +123,11 @@ impl OcsfMapping for SshAuthenticationMapping {
         let message = required_string(parsed, "message")?;
 
         let (event_time_millis, status, time_source) =
-            if let Some(event_time) = &persisted.event_time {
+            if let Some(resolved_event_time) = event_time.event_time.as_ref() {
                 (
-                    timestamp_to_unix_millis(event_time)?,
+                    timestamp_to_unix_millis(resolved_event_time)?,
                     NormalizationStatus::Success,
-                    "event_time",
+                    event_time.source.as_str(),
                 )
             } else {
                 let ingest_time = persisted.ingest_time.as_ref().ok_or_else(|| MappingError {
@@ -145,7 +148,7 @@ impl OcsfMapping for SshAuthenticationMapping {
         })?;
         let ingest_time_millis = timestamp_to_unix_millis(ingest_time)?;
 
-        let ocsf_event = json!({
+        let mut ocsf_event = json!({
             "activity_id": 1,
             "activity_name": "Logon",
             "auth_protocol": "SSH",
@@ -181,6 +184,9 @@ impl OcsfMapping for SshAuthenticationMapping {
             "type_uid": 300_201,
             "user": {"name": username}
         });
+        if let Some(assumption) = event_time.assumption.as_ref() {
+            ocsf_event["metadata"]["cerbero_time_assumption"] = Value::String(assumption.clone());
+        }
 
         Ok(MappingOutput {
             mapping_id: LINUX_SSH_AUTH_MAPPING_ID.to_string(),
@@ -275,8 +281,9 @@ mod tests {
             }),
             ..Default::default()
         };
+        let event_time = EventTimeContext::from_persisted(&persisted);
         let output = SshAuthenticationMapping
-            .map(&parsed(), &persisted, 1_789_000_002_000)
+            .map(&parsed(), &persisted, &event_time, 1_789_000_002_000)
             .unwrap();
         assert_eq!(output.class_uid, 3002);
         assert_eq!(output.category_uid, 3);
@@ -295,13 +302,47 @@ mod tests {
             }),
             ..Default::default()
         };
+        let event_time = EventTimeContext::from_persisted(&persisted);
         let output = SshAuthenticationMapping
-            .map(&parsed(), &persisted, 1_789_000_002_000)
+            .map(&parsed(), &persisted, &event_time, 1_789_000_002_000)
             .unwrap();
         assert_eq!(output.status, NormalizationStatus::Partial);
         assert_eq!(
             output.ocsf_event["metadata"]["cerbero_time_source"],
             "ingest_time_fallback"
+        );
+    }
+
+    #[test]
+    fn source_policy_time_is_explicitly_provenanced() {
+        let persisted = RawEventPersisted {
+            ingest_time: Some(Timestamp {
+                seconds: 1_789_000_001,
+                nanos: 0,
+            }),
+            ..Default::default()
+        };
+        let event_time = EventTimeContext {
+            event_time: Some(Timestamp {
+                seconds: 1_789_000_000,
+                nanos: 0,
+            }),
+            source: "source_time_policy".to_string(),
+            assumption: Some(
+                "fixed_utc_offset=-04:00;rfc3164_year=nearest_ingest_year".to_string(),
+            ),
+        };
+        let output = SshAuthenticationMapping
+            .map(&parsed(), &persisted, &event_time, 1_789_000_002_000)
+            .unwrap();
+        assert_eq!(output.status, NormalizationStatus::Success);
+        assert_eq!(
+            output.ocsf_event["metadata"]["cerbero_time_source"],
+            "source_time_policy"
+        );
+        assert_eq!(
+            output.ocsf_event["metadata"]["cerbero_time_assumption"],
+            "fixed_utc_offset=-04:00;rfc3164_year=nearest_ingest_year"
         );
     }
 }

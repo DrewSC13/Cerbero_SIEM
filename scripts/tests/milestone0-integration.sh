@@ -42,4 +42,4 @@ cargo test -p cerbero-normalizer --test runtime_integration --locked -- --ignore
 echo "Milestone 2 NATS-outage integration: PASS"
 echo "Milestone 2 JSON/HTTP durable-ingest runtime integration: PASS"
 echo "Milestone 3 durable raw-preservation runtime integration: PASS"
-echo "Milestone 4 sshd-to-OCSF ClickHouse runtime integration: PASS"
+echo "Milestone 4 normalizer ClickHouse + governed DLQ runtime integration: PASS"
