@@ -17,6 +17,7 @@ docker compose --env-file .env -f deploy/compose/compose.yaml config --quiet
 ./scripts/dev/bootstrap-nats.sh
 ./scripts/dev/health.sh
 ./scripts/dev/bootstrap-postgres.sh
+./scripts/dev/bootstrap-clickhouse.sh
 ./scripts/tests/raw-preservation-postgres.sh
 
 set -a
@@ -36,6 +37,9 @@ export CERBERO_NATS_URL="nats://127.0.0.1:${NATS_PORT}"
   go test -tags=integration ./internal/preserver -run '^TestDevelopmentRawPreserverRuntime$' -count=1
 )
 
+cargo test -p cerbero-normalizer --test runtime_integration --locked -- --ignored --nocapture
+
 echo "Milestone 2 NATS-outage integration: PASS"
 echo "Milestone 2 JSON/HTTP durable-ingest runtime integration: PASS"
 echo "Milestone 3 durable raw-preservation runtime integration: PASS"
+echo "Milestone 4 sshd-to-OCSF ClickHouse runtime integration: PASS"

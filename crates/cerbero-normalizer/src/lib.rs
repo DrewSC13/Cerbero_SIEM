@@ -6,9 +6,15 @@
 )]
 
 mod canonical;
+mod clickhouse;
 mod core;
+mod eventbus;
 mod mapping;
 mod parser;
+mod raw_store;
+mod runtime;
+mod runtime_config;
+mod system_id;
 
 pub use canonical::{canonical_json_bytes, canonical_json_hash};
 pub use core::{
@@ -23,3 +29,14 @@ pub use parser::{
     LINUX_SSHD_PARSER_ID, LINUX_SSHD_PARSER_VERSION, LinuxSshdParser, ParsedEvent, Parser,
     ParserInput, ParserRegistry, ParsingStatus, TimestampCandidate,
 };
+
+pub use clickhouse::{ClickHouseStore, StoredNormalization};
+pub use eventbus::{
+    ANALYTICS_STREAM_NAME, EventBus, IncomingRawPersisted, NORMALIZED_CREATED_SUBJECT,
+    NORMALIZER_CONSUMER_NAME, RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, REQUEST_ID_HEADER,
+    decode_raw_persisted, retry_delay,
+};
+pub use raw_store::FilesystemRawReader;
+pub use runtime::run;
+pub use runtime_config::RuntimeConfig;
+pub use system_id::{SystemIdGenerator, new_uuid_v7};
