@@ -1,6 +1,6 @@
 [package]
 name = "cerbero-normalizer"
-description = "CERBERO raw-to-OCSF normalizer bootstrap."
+description = "CERBERO raw.persisted-to-OCSF normalizer."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,6 +8,8 @@ license.workspace = true
 
 [dependencies]
 cerbero-common = { path = "../cerbero-common" }
+prost-types = "=0.14.4"
+serde_json = "=1.0.145"
 
 [lints]
 workspace = true
