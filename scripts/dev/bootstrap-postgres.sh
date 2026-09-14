@@ -17,6 +17,8 @@ set +a
 : "${POSTGRES_RAW_PRESERVER_PASSWORD:?POSTGRES_RAW_PRESERVER_PASSWORD is required}"
 : "${POSTGRES_NORMALIZER_USER:?POSTGRES_NORMALIZER_USER is required}"
 : "${POSTGRES_NORMALIZER_PASSWORD:?POSTGRES_NORMALIZER_PASSWORD is required}"
+: "${POSTGRES_WORKER_USER:?POSTGRES_WORKER_USER is required}"
+: "${POSTGRES_WORKER_PASSWORD:?POSTGRES_WORKER_PASSWORD is required}"
 
 if [[ "$POSTGRES_RAW_PRESERVER_USER" == "$POSTGRES_USER" ]]; then
   echo "raw-preserver PostgreSQL login must differ from development admin" >&2
@@ -33,6 +35,21 @@ if [[ "$POSTGRES_NORMALIZER_USER" == "$POSTGRES_RAW_PRESERVER_USER" ]]; then
   exit 1
 fi
 
+if [[ "$POSTGRES_WORKER_USER" == "$POSTGRES_USER" ]]; then
+  echo "worker PostgreSQL login must differ from development admin" >&2
+  exit 1
+fi
+
+if [[ "$POSTGRES_WORKER_USER" == "$POSTGRES_RAW_PRESERVER_USER" ]]; then
+  echo "worker PostgreSQL login must differ from raw-preserver login" >&2
+  exit 1
+fi
+
+if [[ "$POSTGRES_WORKER_USER" == "$POSTGRES_NORMALIZER_USER" ]]; then
+  echo "worker PostgreSQL login must differ from normalizer login" >&2
+  exit 1
+fi
+
 docker compose --env-file .env -f deploy/compose/compose.yaml exec -T postgres \
   psql \
     --username "$POSTGRES_USER" \
@@ -41,7 +58,9 @@ docker compose --env-file .env -f deploy/compose/compose.yaml exec -T postgres \
     --set app_user="$POSTGRES_RAW_PRESERVER_USER" \
     --set app_password="$POSTGRES_RAW_PRESERVER_PASSWORD" \
     --set normalizer_user="$POSTGRES_NORMALIZER_USER" \
-    --set normalizer_password="$POSTGRES_NORMALIZER_PASSWORD" <<'SQL'
+    --set normalizer_password="$POSTGRES_NORMALIZER_PASSWORD" \
+    --set worker_user="$POSTGRES_WORKER_USER" \
+    --set worker_password="$POSTGRES_WORKER_PASSWORD" <<'SQL'
 SELECT format('CREATE ROLE %I LOGIN', :'app_user')
 WHERE NOT EXISTS (
     SELECT 1 FROM pg_roles WHERE rolname = :'app_user'
@@ -79,6 +98,25 @@ SELECT format(
     :'normalizer_user'
 )
 \gexec
+
+SELECT format('CREATE ROLE %I LOGIN', :'worker_user')
+WHERE NOT EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'worker_user'
+)
+\gexec
+
+SELECT format(
+    'ALTER ROLE %I WITH LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD %L',
+    :'worker_user',
+    :'worker_password'
+)
+\gexec
+
+SELECT format(
+    'GRANT cerbero_worker TO %I',
+    :'worker_user'
+)
+\gexec
 SQL
 
-echo "development raw-preserver + normalizer PostgreSQL logins: PASS"
+echo "development raw-preserver + normalizer + worker PostgreSQL logins: PASS"

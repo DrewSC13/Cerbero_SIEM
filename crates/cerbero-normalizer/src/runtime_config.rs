@@ -6,6 +6,12 @@ use cerbero_common::contracts::v1::ExecutionMode;
 
 use crate::{NormalizerError, SourceTimePolicyRegistry};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReplayInput {
+    Historical,
+    Selective,
+}
+
 #[derive(Clone, Debug)]
 pub struct RuntimeConfig {
     pub nats_url: String,
@@ -15,6 +21,7 @@ pub struct RuntimeConfig {
     pub instance_id: String,
     pub pipeline_version: String,
     pub execution_mode: ExecutionMode,
+    pub replay_input: ReplayInput,
     pub linux_sshd_parser_version: String,
     pub source_time_policies: SourceTimePolicyRegistry,
     pub raw_store_path: PathBuf,
@@ -52,6 +59,23 @@ impl RuntimeConfig {
                 )));
             }
         };
+        let replay_input = match env::var("CERBERO_NORMALIZER_REPLAY_INPUT")
+            .unwrap_or_else(|_| "HISTORICAL".to_string())
+            .trim()
+        {
+            "HISTORICAL" => ReplayInput::Historical,
+            "SELECTIVE" => ReplayInput::Selective,
+            other => {
+                return Err(config_error(&format!(
+                    "CERBERO_NORMALIZER_REPLAY_INPUT must be HISTORICAL or SELECTIVE; got {other}"
+                )));
+            }
+        };
+        if execution_mode != ExecutionMode::Replay && replay_input == ReplayInput::Selective {
+            return Err(config_error(
+                "CERBERO_NORMALIZER_REPLAY_INPUT=SELECTIVE requires CERBERO_NORMALIZER_EXECUTION_MODE=REPLAY",
+            ));
+        }
         let host = required("CLICKHOUSE_HOST")?;
         let port = required("CLICKHOUSE_HTTP_PORT")?;
 
@@ -63,6 +87,7 @@ impl RuntimeConfig {
             instance_id: required("CERBERO_NORMALIZER_INSTANCE_ID")?,
             pipeline_version: required("CERBERO_NORMALIZER_PIPELINE_VERSION")?,
             execution_mode,
+            replay_input,
             linux_sshd_parser_version: required("CERBERO_NORMALIZER_LINUX_SSHD_PARSER_VERSION")?,
             source_time_policies: SourceTimePolicyRegistry::parse_spec(
                 &env::var("CERBERO_NORMALIZER_SOURCE_TIME_OFFSETS").unwrap_or_default(),
@@ -121,6 +146,13 @@ impl RuntimeConfig {
         if self.execution_mode == ExecutionMode::Unspecified {
             return Err(config_error(
                 "normalizer execution mode must not be unspecified",
+            ));
+        }
+        if self.execution_mode != ExecutionMode::Replay
+            && self.replay_input == ReplayInput::Selective
+        {
+            return Err(config_error(
+                "selective replay input requires REPLAY execution mode",
             ));
         }
         if !matches!(self.linux_sshd_parser_version.as_str(), "1" | "2") {
@@ -218,6 +250,7 @@ mod tests {
             instance_id: "normalizer-1".to_string(),
             pipeline_version: "normalizer-v1".to_string(),
             execution_mode: ExecutionMode::Live,
+            replay_input: ReplayInput::Historical,
             linux_sshd_parser_version: "1".to_string(),
             source_time_policies: SourceTimePolicyRegistry::default(),
             raw_store_path: PathBuf::from("var/raw"),
@@ -247,6 +280,7 @@ mod tests {
             instance_id: "normalizer-1".to_string(),
             pipeline_version: "normalizer-v1".to_string(),
             execution_mode: ExecutionMode::Replay,
+            replay_input: ReplayInput::Historical,
             linux_sshd_parser_version: "3".to_string(),
             source_time_policies: SourceTimePolicyRegistry::default(),
             raw_store_path: PathBuf::from("var/raw"),
@@ -276,6 +310,7 @@ mod tests {
             instance_id: "normalizer-1".to_string(),
             pipeline_version: "normalizer-v1".to_string(),
             execution_mode: ExecutionMode::Live,
+            replay_input: ReplayInput::Historical,
             linux_sshd_parser_version: "1".to_string(),
             source_time_policies: SourceTimePolicyRegistry::default(),
             raw_store_path: PathBuf::from("var/raw"),
@@ -299,6 +334,38 @@ mod tests {
             error.message,
             "CERBERO_NORMALIZER_RETRY_BUDGET must be greater than zero"
         );
+    }
+
+    #[test]
+    fn validate_rejects_selective_replay_input_outside_replay_mode() {
+        let mut config = RuntimeConfig {
+            nats_url: "nats://127.0.0.1:4222".to_string(),
+            nats_user: "u".to_string(),
+            nats_password: "p".to_string(),
+            component_version: "dev".to_string(),
+            instance_id: "normalizer-1".to_string(),
+            pipeline_version: "normalizer-v1".to_string(),
+            execution_mode: ExecutionMode::Live,
+            replay_input: ReplayInput::Historical,
+            linux_sshd_parser_version: "1".to_string(),
+            source_time_policies: SourceTimePolicyRegistry::default(),
+            raw_store_path: PathBuf::from("var/raw"),
+            clickhouse_url: "http://127.0.0.1:8123".to_string(),
+            clickhouse_database: "cerbero".to_string(),
+            clickhouse_user: "normalizer".to_string(),
+            clickhouse_password: "secret".to_string(),
+            postgres_host: "127.0.0.1".to_string(),
+            postgres_port: 5432,
+            postgres_database: "cerbero".to_string(),
+            postgres_user: "normalizer".to_string(),
+            postgres_password: "secret".to_string(),
+            retry_min_delay: Duration::from_secs(1),
+            retry_max_delay: Duration::from_secs(5),
+            retry_budget: 5,
+        };
+        config.replay_input = ReplayInput::Selective;
+        let error = config.validate().unwrap_err();
+        assert_eq!(error.code, "CER-NORM-CONFIG");
     }
 
     #[test]

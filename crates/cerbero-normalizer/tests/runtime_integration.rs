@@ -1,6 +1,8 @@
 #![allow(clippy::too_many_lines)]
 
 use std::fs;
+use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 use async_nats::HeaderMap;
@@ -10,9 +12,10 @@ use cerbero_common::contracts::v1::{
 };
 use cerbero_normalizer::{
     ANALYTICS_STREAM_NAME, DLQ_STREAM_NAME, EXECUTION_MODE_HEADER, GENERIC_JSON_PARSER_ID,
-    NORMALIZATION_DLQ_SUBJECT, NORMALIZED_CREATED_SUBJECT, NORMALIZER_CONSUMER_NAME,
-    NORMALIZER_REPLAY_CONSUMER_NAME, NORMALIZER_TEST_CONSUMER_NAME, NormalizationDeadLetter,
-    RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, RuntimeConfig, SourceTimePolicyRegistry,
+    NORMALIZATION_DLQ_SCHEMA, NORMALIZATION_DLQ_SUBJECT, NORMALIZED_CREATED_SUBJECT,
+    NORMALIZER_CONSUMER_NAME, NORMALIZER_REPLAY_CONSUMER_NAME, NORMALIZER_TEST_CONSUMER_NAME,
+    NormalizationDeadLetter, RAW_PERSISTED_SUBJECT, RAW_STREAM_NAME, ReplayInput, RuntimeConfig,
+    SourceTimePolicyRegistry,
 };
 use futures_util::StreamExt;
 use prost::Message as _;
@@ -48,6 +51,7 @@ async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
         instance_id: format!("normalizer-integration-{}", Uuid::now_v7()),
         pipeline_version: "normalizer-v1-integration".to_string(),
         execution_mode: ExecutionMode::Live,
+        replay_input: ReplayInput::Historical,
         linux_sshd_parser_version: "1".to_string(),
         source_time_policies: SourceTimePolicyRegistry::default(),
         raw_store_path: root.path().to_path_buf(),
@@ -204,6 +208,349 @@ async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
         .expect("runtime shutdown timeout")
         .expect("runtime task join failed");
     runtime_result.expect("normalizer runtime failed");
+}
+
+const NORMALIZER_SELECTIVE_REPLAY_CONSUMER_NAME: &str = "normalizer-replay-selective";
+const WORKER_NORMALIZATION_DLQ_REPLAY_CONSUMER_NAME: &str = "worker-normalization-dlq-replay";
+const RAW_REPLAY_SUBJECT: &str = "cerbero.v1.raw.replay";
+
+struct WorkerProcess {
+    child: Child,
+}
+
+impl Drop for WorkerProcess {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires development NATS JetStream, PostgreSQL, ClickHouse, and Go toolchain"]
+async fn development_selective_dlq_replay_reaches_clickhouse_as_replay() {
+    let _infrastructure_guard = DEVELOPMENT_RUNTIME_TEST_LOCK.lock().await;
+    let nats_url = env("CERBERO_NATS_URL");
+
+    assert!(
+        !consumer_exists_on_stream(
+            &nats_url,
+            RAW_STREAM_NAME,
+            NORMALIZER_SELECTIVE_REPLAY_CONSUMER_NAME,
+        )
+        .await,
+        "refusing to reuse an existing selective normalizer consumer"
+    );
+    assert!(
+        !consumer_exists_on_stream(
+            &nats_url,
+            DLQ_STREAM_NAME,
+            WORKER_NORMALIZATION_DLQ_REPLAY_CONSUMER_NAME,
+        )
+        .await,
+        "refusing to reuse an existing worker replay consumer"
+    );
+
+    let raw_store_root = development_raw_store_path();
+    let raw = b"Failed password for invalid user admin from 10.0.0.8 port 50341 ssh2";
+    let event_id = Uuid::now_v7().to_string();
+    let raw_path = raw_store_root.join(format!("tenant-dev/2026/09/13/22/{event_id}/raw.bin"));
+    fs::create_dir_all(raw_path.parent().unwrap()).unwrap();
+    fs::write(&raw_path, raw).unwrap();
+    assert_eq!(fs::read(&raw_path).unwrap(), raw);
+
+    let detection = async_nats::ConnectOptions::with_user_and_password(
+        env("NATS_DETECTION_USER"),
+        env("NATS_DETECTION_PASSWORD"),
+    )
+    .name("normalizer-selective-replay-e2e-observer")
+    .connect(&nats_url)
+    .await
+    .unwrap();
+    let mut normalized = detection
+        .subscribe(NORMALIZED_CREATED_SUBJECT)
+        .await
+        .unwrap();
+    detection.flush().await.unwrap();
+
+    let raw_preserver = async_nats::ConnectOptions::with_user_and_password(
+        env("NATS_RAW_PRESERVER_USER"),
+        env("NATS_RAW_PRESERVER_PASSWORD"),
+    )
+    .name("normalizer-selective-replay-e2e-source")
+    .connect(&nats_url)
+    .await
+    .unwrap();
+    let raw_js = async_nats::jetstream::new(raw_preserver);
+
+    let mut selective_config = mode_config(
+        &raw_store_root,
+        &nats_url,
+        ExecutionMode::Replay,
+        "1",
+        "selective-replay-e2e",
+    );
+    selective_config.replay_input = ReplayInput::Selective;
+    let selective_config = selective_config.validate().unwrap();
+
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let normalizer_runtime = tokio::spawn(cerbero_normalizer::run(
+        selective_config.clone(),
+        shutdown_rx,
+    ));
+    wait_for_deliver_new_consumer(
+        &nats_url,
+        RAW_STREAM_NAME,
+        NORMALIZER_SELECTIVE_REPLAY_CONSUMER_NAME,
+        RAW_REPLAY_SUBJECT,
+    )
+    .await;
+
+    let worker_build_root = TempDir::new().expect("worker build tempdir");
+    let worker = start_worker(&worker_build_root);
+    wait_for_deliver_new_consumer(
+        &nats_url,
+        DLQ_STREAM_NAME,
+        WORKER_NORMALIZATION_DLQ_REPLAY_CONSUMER_NAME,
+        NORMALIZATION_DLQ_SUBJECT,
+    )
+    .await;
+
+    let envelope = raw_persisted_envelope(&event_id, raw);
+    let wire = envelope.encode_to_vec();
+    let source_sequence = publish_raw_persisted(&raw_js, &wire, Uuid::now_v7().to_string()).await;
+
+    let dlq_record_id = Uuid::now_v7().to_string();
+    let request_id = Uuid::now_v7().to_string();
+    let dead_letter = NormalizationDeadLetter {
+        schema_version: NORMALIZATION_DLQ_SCHEMA.to_string(),
+        dlq_record_id: dlq_record_id.clone(),
+        original_message_id: Some(envelope.message_id.clone()),
+        original_subject: RAW_PERSISTED_SUBJECT.to_string(),
+        original_payload_sha256: sha256_lower_hex(&wire),
+        consumer: NORMALIZER_CONSUMER_NAME.to_string(),
+        attempt_count: 1,
+        stream_sequence: Some(source_sequence),
+        consumer_sequence: Some(1),
+        error_code: "CER-NORM-CLICKHOUSE-UNAVAILABLE".to_string(),
+        error_category: "STORAGE".to_string(),
+        failure_stage: "normalized_storage".to_string(),
+        error_message: "synthetic retryable Step 19 DEVELOPMENT E2E failure".to_string(),
+        retryable: true,
+        first_failure_unix_ms: 1,
+        last_failure_unix_ms: 1,
+        tenant_id: Some("tenant-dev".to_string()),
+        raw_event_id: Some(event_id.clone()),
+        parser_id: Some(cerbero_normalizer::LINUX_SSHD_PARSER_ID.to_string()),
+        parser_version: Some("1".to_string()),
+        request_id: Some(request_id.clone()),
+        trace_id: Some(envelope.trace_id.clone()),
+        correlation_id: None,
+        replay_root_dlq_record_id: None,
+        replay_attempt: None,
+    };
+
+    let admin_js = admin_jetstream(&nats_url, "normalizer-selective-replay-e2e-admin").await;
+    let dlq_sequence = publish_normalization_dlq(&admin_js, &dead_letter, &request_id).await;
+
+    let replayed = next_normalized_for_causation(&mut normalized, &envelope.message_id).await;
+    assert_execution_header(&replayed, "REPLAY");
+    wait_for_consumer_ack_on_stream(
+        &nats_url,
+        DLQ_STREAM_NAME,
+        WORKER_NORMALIZATION_DLQ_REPLAY_CONSUMER_NAME,
+        dlq_sequence,
+    )
+    .await;
+
+    let rows = clickhouse_history(&selective_config, &event_id).await;
+    assert_eq!(
+        rows.len(),
+        1,
+        "selective replay must create exactly one derivation"
+    );
+    assert_eq!(rows[0].execution_mode, ExecutionMode::Replay as i32);
+    assert_eq!(rows[0].parser_version, "1");
+
+    stop_runtime(shutdown_tx, normalizer_runtime).await;
+    assert!(
+        !consumer_exists_on_stream(
+            &nats_url,
+            RAW_STREAM_NAME,
+            NORMALIZER_SELECTIVE_REPLAY_CONSUMER_NAME,
+        )
+        .await,
+        "selective normalizer consumer must be deleted on shutdown"
+    );
+
+    drop(worker);
+    delete_consumer_on_stream(
+        &nats_url,
+        DLQ_STREAM_NAME,
+        WORKER_NORMALIZATION_DLQ_REPLAY_CONSUMER_NAME,
+    )
+    .await;
+    assert!(
+        !consumer_exists_on_stream(
+            &nats_url,
+            DLQ_STREAM_NAME,
+            WORKER_NORMALIZATION_DLQ_REPLAY_CONSUMER_NAME,
+        )
+        .await,
+        "worker replay consumer cleanup failed"
+    );
+
+    println!(
+        "STEP19_E2E_PASS event_id={event_id} dlq_record_id={dlq_record_id} source_sequence={source_sequence}"
+    );
+}
+
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn development_raw_store_path() -> PathBuf {
+    let configured = PathBuf::from(env("CERBERO_RAW_STORE_PATH"));
+    if configured.is_absolute() {
+        configured
+    } else {
+        workspace_root().join(configured)
+    }
+}
+
+fn start_worker(build_root: &TempDir) -> WorkerProcess {
+    let worker_dir = workspace_root().join("services/cerbero-worker");
+    let worker_binary = build_root.path().join("cerbero-worker-step19-e2e");
+    let output = Command::new("go")
+        .arg("build")
+        .arg("-o")
+        .arg(&worker_binary)
+        .arg(".")
+        .current_dir(&worker_dir)
+        .env("GOFLAGS", "-mod=readonly")
+        .output()
+        .expect("build cerbero-worker for Step 19 E2E");
+    assert!(
+        output.status.success(),
+        "cerbero-worker build failed\nstdout={}\nstderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let child = Command::new(&worker_binary)
+        .current_dir(workspace_root())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .expect("start cerbero-worker for Step 19 E2E");
+    WorkerProcess { child }
+}
+
+async fn wait_for_deliver_new_consumer(
+    nats_url: &str,
+    stream_name: &str,
+    consumer_name: &str,
+    filter_subject: &str,
+) {
+    let jetstream = admin_jetstream(nats_url, "step19-e2e-consumer-ready").await;
+    let stream = jetstream.get_stream(stream_name).await.unwrap();
+
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let result: Result<async_nats::jetstream::consumer::PullConsumer, _> =
+                stream.get_consumer(consumer_name).await;
+            if let Ok(consumer) = result {
+                let info = consumer.get_info().await.unwrap();
+                assert_eq!(
+                    info.config.deliver_policy,
+                    async_nats::jetstream::consumer::DeliverPolicy::New
+                );
+                assert_eq!(info.config.filter_subject, filter_subject);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("{consumer_name} was not created"));
+}
+
+async fn consumer_exists_on_stream(nats_url: &str, stream_name: &str, consumer_name: &str) -> bool {
+    let jetstream = admin_jetstream(nats_url, "step19-e2e-consumer-existence").await;
+    let stream = jetstream.get_stream(stream_name).await.unwrap();
+    let result: Result<async_nats::jetstream::consumer::PullConsumer, _> =
+        stream.get_consumer(consumer_name).await;
+    result.is_ok()
+}
+
+async fn delete_consumer_on_stream(nats_url: &str, stream_name: &str, consumer_name: &str) {
+    let jetstream = admin_jetstream(nats_url, "step19-e2e-consumer-cleanup").await;
+    let stream = jetstream.get_stream(stream_name).await.unwrap();
+    stream.delete_consumer(consumer_name).await.unwrap();
+}
+
+async fn next_normalized_for_causation(
+    subscription: &mut async_nats::Subscriber,
+    causation_id: &str,
+) -> async_nats::Message {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let message = subscription
+                .next()
+                .await
+                .expect("normalized.created subscription ended");
+            let envelope = CerberoEnvelope::decode(message.payload.as_ref()).unwrap();
+            if envelope.causation_id == causation_id {
+                break message;
+            }
+        }
+    })
+    .await
+    .expect("selective replay normalized.created timeout")
+}
+
+async fn publish_normalization_dlq(
+    jetstream: &async_nats::jetstream::Context,
+    record: &NormalizationDeadLetter,
+    request_id: &str,
+) -> u64 {
+    let mut headers = HeaderMap::new();
+    headers.insert("Nats-Msg-Id", record.nats_message_id());
+    headers.insert("Cerbero-DLQ-Schema", record.schema_version.clone());
+    headers.insert("Cerbero-Request-Id", request_id.to_string());
+    let payload = serde_json::to_vec(record).unwrap();
+    let ack = jetstream
+        .publish_with_headers(NORMALIZATION_DLQ_SUBJECT, headers, payload.into())
+        .await
+        .unwrap()
+        .await
+        .unwrap();
+    assert_eq!(ack.stream, DLQ_STREAM_NAME);
+    assert!(ack.sequence > 0);
+    ack.sequence
+}
+
+async fn wait_for_consumer_ack_on_stream(
+    nats_url: &str,
+    stream_name: &str,
+    consumer_name: &str,
+    stream_sequence: u64,
+) {
+    let jetstream = admin_jetstream(nats_url, "step19-e2e-ack-observer").await;
+    let stream = jetstream.get_stream(stream_name).await.unwrap();
+    let consumer: async_nats::jetstream::consumer::PullConsumer =
+        stream.get_consumer(consumer_name).await.unwrap();
+
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let info = consumer.get_info().await.unwrap();
+            if info.ack_floor.stream_sequence >= stream_sequence {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .expect("worker did not ACK normalization DLQ");
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -373,6 +720,7 @@ fn mode_config(
         instance_id: format!("normalizer-{suffix}-{}", Uuid::now_v7()),
         pipeline_version: "normalizer-v1-integration".to_string(),
         execution_mode,
+        replay_input: ReplayInput::Historical,
         linux_sshd_parser_version: parser_version.to_string(),
         source_time_policies: SourceTimePolicyRegistry::default(),
         raw_store_path: raw_store_path.to_path_buf(),
