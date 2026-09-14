@@ -15,6 +15,8 @@ mod metrics;
 mod parser;
 mod parser_formats;
 mod raw_store;
+mod retry_state;
+mod retry_state_postgres;
 mod runtime;
 mod runtime_config;
 mod source_time;
@@ -59,6 +61,8 @@ pub use metrics::{
     PARSE_SUCCESS_TOTAL, PARSE_UNSUPPORTED_TOTAL, PARSER_BY_ID, PARSER_LATENCY, ParseMetricStatus,
 };
 pub use raw_store::FilesystemRawReader;
+pub use retry_state::{RetryFailure, RetryState, RetryStateStore};
+pub use retry_state_postgres::PostgresRetryStateStore;
 pub use runtime::{run, run_with_metrics};
 pub use runtime_config::RuntimeConfig;
 pub use source_time::{

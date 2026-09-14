@@ -6,9 +6,19 @@ use cerbero_common::contracts::v1::{CerberoEnvelope, RawEventPersisted};
 use prost::Message as _;
 use serde::{Deserialize, Serialize};
 
-use crate::{NormalizerError, new_uuid_v7};
+use crate::new_uuid_v7;
 
 pub const NORMALIZATION_DLQ_SCHEMA: &str = "cerbero.normalization_dlq.v1";
+
+#[derive(Clone, Debug)]
+pub(crate) struct DeadLetterFailure<'a> {
+    pub error_code: &'a str,
+    pub error_message: &'a str,
+    pub retryable: bool,
+    pub attempt_count: u64,
+    pub first_failure_at: SystemTime,
+    pub last_failure_at: SystemTime,
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct NormalizationDeadLetter {
@@ -39,12 +49,11 @@ pub struct NormalizationDeadLetter {
 
 impl NormalizationDeadLetter {
     #[must_use]
-    pub fn from_message(
+    pub(crate) fn from_message(
         message: &jetstream::Message,
         consumer: &str,
-        error: &NormalizerError,
+        failure: &DeadLetterFailure<'_>,
         parser_identity: Option<(&str, &str)>,
-        first_failure_unix_ms: i64,
     ) -> Self {
         let info = message.info().ok();
         let envelope = CerberoEnvelope::decode(message.payload.as_ref()).ok();
@@ -60,8 +69,6 @@ impl NormalizationDeadLetter {
             .as_ref()
             .and_then(|headers| headers.get("Cerbero-Request-Id"))
             .and_then(|value| non_empty(value.as_str()));
-        let last_failure_unix_ms = unix_time_millis();
-
         Self {
             schema_version: NORMALIZATION_DLQ_SCHEMA.to_string(),
             dlq_record_id: new_uuid_v7(),
@@ -69,18 +76,16 @@ impl NormalizationDeadLetter {
             original_subject: message.subject.to_string(),
             original_payload_sha256: sha256_lower_hex(message.payload.as_ref()),
             consumer: consumer.to_string(),
-            attempt_count: info.as_ref().map_or(1, |value| {
-                u64::try_from(value.delivered.max(1)).unwrap_or(u64::MAX)
-            }),
+            attempt_count: failure.attempt_count,
             stream_sequence: info.as_ref().map(|value| value.stream_sequence),
             consumer_sequence: info.as_ref().map(|value| value.consumer_sequence),
-            error_code: error.code.to_string(),
-            error_category: error_category(error.code).to_string(),
-            failure_stage: failure_stage(error.code).to_string(),
-            error_message: error.message.clone(),
-            retryable: error.retryable,
-            first_failure_unix_ms,
-            last_failure_unix_ms,
+            error_code: failure.error_code.to_string(),
+            error_category: error_category(failure.error_code).to_string(),
+            failure_stage: failure_stage(failure.error_code).to_string(),
+            error_message: failure.error_message.to_string(),
+            retryable: failure.retryable,
+            first_failure_unix_ms: system_time_millis(failure.first_failure_at),
+            last_failure_unix_ms: system_time_millis(failure.last_failure_at),
             tenant_id: envelope
                 .as_ref()
                 .and_then(|value| non_empty(value.tenant_id.as_str())),
@@ -119,11 +124,13 @@ impl NormalizationDeadLetter {
 
 #[must_use]
 pub fn unix_time_millis() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| {
-            i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
-        })
+    system_time_millis(SystemTime::now())
+}
+
+fn system_time_millis(time: SystemTime) -> i64 {
+    time.duration_since(UNIX_EPOCH).map_or(0, |duration| {
+        i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
+    })
 }
 
 fn non_empty(value: &str) -> Option<String> {
