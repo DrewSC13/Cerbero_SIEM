@@ -100,13 +100,24 @@ impl OcsfMapping for SshAuthenticationMapping {
         persisted: &RawEventPersisted,
         normalized_at_unix_millis: i64,
     ) -> Result<MappingOutput, MappingError> {
-        if parsed.parser_id != LINUX_SSHD_PARSER_ID {
+        if parsed.parser_id != LINUX_SSHD_PARSER_ID
+            || parsed.source_event_type != "linux.ssh.authentication"
+        {
             return Err(MappingError {
                 code: "CER-NORM-MAPPING-PARSER-MISMATCH",
-                message: format!("mapping does not accept parser {}", parsed.parser_id),
+                message: format!(
+                    "mapping does not accept parser {} source_event_type {}",
+                    parsed.parser_id, parsed.source_event_type
+                ),
                 retryable: false,
             });
         }
+
+        let username = required_string(parsed, "username")?;
+        let source_ip = required_string(parsed, "source_ip")?;
+        let source_port = required_u16(parsed, "source_port")?;
+        let invalid_user = required_bool(parsed, "invalid_user")?;
+        let message = required_string(parsed, "message")?;
 
         let (event_time_millis, status, time_source) =
             if let Some(event_time) = &persisted.event_time {
@@ -144,7 +155,7 @@ impl OcsfMapping for SshAuthenticationMapping {
             "class_name": "Authentication",
             "class_uid": 3002,
             "is_remote": true,
-            "message": parsed.message,
+            "message": message,
             "metadata": {
                 "logged_time": ingest_time_millis,
                 "processed_time": normalized_at_unix_millis,
@@ -159,16 +170,16 @@ impl OcsfMapping for SshAuthenticationMapping {
             "severity": "Low",
             "severity_id": 2,
             "src_endpoint": {
-                "ip": parsed.source_ip,
-                "port": parsed.source_port
+                "ip": source_ip,
+                "port": source_port
             },
             "status": "Failure",
-            "status_detail": if parsed.invalid_user {"Invalid user"} else {"Authentication failed"},
+            "status_detail": if invalid_user {"Invalid user"} else {"Authentication failed"},
             "status_id": 2,
             "time": event_time_millis,
             "type_name": "Authentication: Logon",
             "type_uid": 300_201,
-            "user": {"name": parsed.username}
+            "user": {"name": username}
         });
 
         Ok(MappingOutput {
@@ -182,6 +193,35 @@ impl OcsfMapping for SshAuthenticationMapping {
             ocsf_event,
         })
     }
+}
+
+fn required_string<'a>(parsed: &'a ParsedEvent, field: &str) -> Result<&'a str, MappingError> {
+    parsed.string_field(field).ok_or_else(|| MappingError {
+        code: "CER-NORM-MISSING-REQUIRED-FIELD",
+        message: format!("required parsed field {field} must be a string"),
+        retryable: false,
+    })
+}
+
+fn required_bool(parsed: &ParsedEvent, field: &str) -> Result<bool, MappingError> {
+    parsed.bool_field(field).ok_or_else(|| MappingError {
+        code: "CER-NORM-MISSING-REQUIRED-FIELD",
+        message: format!("required parsed field {field} must be a bool"),
+        retryable: false,
+    })
+}
+
+fn required_u16(parsed: &ParsedEvent, field: &str) -> Result<u16, MappingError> {
+    let value = parsed.u64_field(field).ok_or_else(|| MappingError {
+        code: "CER-NORM-MISSING-REQUIRED-FIELD",
+        message: format!("required parsed field {field} must be an unsigned integer"),
+        retryable: false,
+    })?;
+    u16::try_from(value).map_err(|_| MappingError {
+        code: "CER-NORM-MISSING-REQUIRED-FIELD",
+        message: format!("required parsed field {field} is outside uint16 range"),
+        retryable: false,
+    })
 }
 
 fn timestamp_to_unix_millis(timestamp: &prost_types::Timestamp) -> Result<i64, MappingError> {
@@ -209,22 +249,17 @@ mod tests {
     use prost_types::Timestamp;
 
     use super::*;
-    use crate::parser::{ParsedEvent, ParsingStatus};
+    use crate::parser::{LinuxSshdParser, ParsedEvent, Parser, ParserInput};
 
     fn parsed() -> ParsedEvent {
-        ParsedEvent {
-            parser_id: LINUX_SSHD_PARSER_ID.to_string(),
-            parser_version: "1".to_string(),
-            status: ParsingStatus::Success,
-            username: "admin".to_string(),
-            source_ip: "10.0.0.8".to_string(),
-            source_port: 50341,
-            authentication_succeeded: false,
-            invalid_user: true,
-            message: "SSH authentication failed for user admin from 10.0.0.8".to_string(),
-            timestamp_candidates: Vec::new(),
-            warnings: Vec::new(),
-        }
+        let persisted = RawEventPersisted::default();
+        LinuxSshdParser
+            .parse(&ParserInput {
+                raw: b"Failed password for invalid user admin from 10.0.0.8 port 50341 ssh2",
+                persisted: &persisted,
+                configured_parser_id: None,
+            })
+            .unwrap()
     }
 
     #[test]
