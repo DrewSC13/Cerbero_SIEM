@@ -22,8 +22,14 @@ pub struct RuntimeConfig {
     pub clickhouse_database: String,
     pub clickhouse_user: String,
     pub clickhouse_password: String,
+    pub postgres_host: String,
+    pub postgres_port: u16,
+    pub postgres_database: String,
+    pub postgres_user: String,
+    pub postgres_password: String,
     pub retry_min_delay: Duration,
     pub retry_max_delay: Duration,
+    pub retry_budget: u32,
 }
 
 impl RuntimeConfig {
@@ -67,8 +73,14 @@ impl RuntimeConfig {
             clickhouse_database: required("CLICKHOUSE_DB")?,
             clickhouse_user: required("CLICKHOUSE_NORMALIZER_USER")?,
             clickhouse_password: required("CLICKHOUSE_NORMALIZER_PASSWORD")?,
+            postgres_host: required("POSTGRES_HOST")?,
+            postgres_port: parse_u16("POSTGRES_PORT")?,
+            postgres_database: required("POSTGRES_DB")?,
+            postgres_user: required("POSTGRES_NORMALIZER_USER")?,
+            postgres_password: required("POSTGRES_NORMALIZER_PASSWORD")?,
             retry_min_delay: parse_duration_seconds("CERBERO_NORMALIZER_RETRY_MIN_SECONDS")?,
             retry_max_delay: parse_duration_seconds("CERBERO_NORMALIZER_RETRY_MAX_SECONDS")?,
+            retry_budget: parse_u32("CERBERO_NORMALIZER_RETRY_BUDGET")?,
         })
         .and_then(Self::validate)
     }
@@ -93,6 +105,13 @@ impl RuntimeConfig {
             (
                 "CLICKHOUSE_NORMALIZER_PASSWORD",
                 self.clickhouse_password.as_str(),
+            ),
+            ("POSTGRES_HOST", self.postgres_host.as_str()),
+            ("POSTGRES_DB", self.postgres_database.as_str()),
+            ("POSTGRES_NORMALIZER_USER", self.postgres_user.as_str()),
+            (
+                "POSTGRES_NORMALIZER_PASSWORD",
+                self.postgres_password.as_str(),
             ),
         ] {
             if value.trim().is_empty() {
@@ -124,6 +143,14 @@ impl RuntimeConfig {
                 "normalizer retry maximum must be greater than or equal to retry minimum",
             ));
         }
+        if self.postgres_port == 0 {
+            return Err(config_error("POSTGRES_PORT must be greater than zero"));
+        }
+        if self.retry_budget == 0 {
+            return Err(config_error(
+                "CERBERO_NORMALIZER_RETRY_BUDGET must be greater than zero",
+            ));
+        }
         if self.raw_store_path.as_os_str().is_empty() {
             return Err(config_error("CERBERO_RAW_STORE_PATH is required"));
         }
@@ -145,6 +172,20 @@ fn required(name: &str) -> Result<String, NormalizerError> {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| config_error(&format!("{name} is required")))
+}
+
+fn parse_u16(name: &str) -> Result<u16, NormalizerError> {
+    required(name)?.parse::<u16>().map_err(|_| {
+        config_error(&format!(
+            "{name} must contain an integer between 0 and 65535"
+        ))
+    })
+}
+
+fn parse_u32(name: &str) -> Result<u32, NormalizerError> {
+    required(name)?
+        .parse::<u32>()
+        .map_err(|_| config_error(&format!("{name} must contain a non-negative integer")))
 }
 
 fn parse_duration_seconds(name: &str) -> Result<Duration, NormalizerError> {
@@ -184,8 +225,14 @@ mod tests {
             clickhouse_database: "cerbero".to_string(),
             clickhouse_user: "normalizer".to_string(),
             clickhouse_password: "secret".to_string(),
+            postgres_host: "127.0.0.1".to_string(),
+            postgres_port: 5432,
+            postgres_database: "cerbero".to_string(),
+            postgres_user: "normalizer".to_string(),
+            postgres_password: "secret".to_string(),
             retry_min_delay: Duration::from_secs(5),
             retry_max_delay: Duration::from_secs(1),
+            retry_budget: 5,
         };
         assert_eq!(config.validate().unwrap_err().code, "CER-NORM-CONFIG");
     }
@@ -207,10 +254,51 @@ mod tests {
             clickhouse_database: "cerbero".to_string(),
             clickhouse_user: "normalizer".to_string(),
             clickhouse_password: "secret".to_string(),
+            postgres_host: "127.0.0.1".to_string(),
+            postgres_port: 5432,
+            postgres_database: "cerbero".to_string(),
+            postgres_user: "normalizer".to_string(),
+            postgres_password: "secret".to_string(),
             retry_min_delay: Duration::from_secs(1),
             retry_max_delay: Duration::from_secs(5),
+            retry_budget: 5,
         };
         assert_eq!(config.validate().unwrap_err().code, "CER-NORM-CONFIG");
+    }
+
+    #[test]
+    fn validate_rejects_zero_retry_budget() {
+        let config = RuntimeConfig {
+            nats_url: "nats://127.0.0.1:4222".to_string(),
+            nats_user: "u".to_string(),
+            nats_password: "p".to_string(),
+            component_version: "dev".to_string(),
+            instance_id: "normalizer-1".to_string(),
+            pipeline_version: "normalizer-v1".to_string(),
+            execution_mode: ExecutionMode::Live,
+            linux_sshd_parser_version: "1".to_string(),
+            source_time_policies: SourceTimePolicyRegistry::default(),
+            raw_store_path: PathBuf::from("var/raw"),
+            clickhouse_url: "http://127.0.0.1:8123".to_string(),
+            clickhouse_database: "cerbero".to_string(),
+            clickhouse_user: "normalizer".to_string(),
+            clickhouse_password: "secret".to_string(),
+            postgres_host: "127.0.0.1".to_string(),
+            postgres_port: 5432,
+            postgres_database: "cerbero".to_string(),
+            postgres_user: "normalizer".to_string(),
+            postgres_password: "secret".to_string(),
+            retry_min_delay: Duration::from_secs(1),
+            retry_max_delay: Duration::from_secs(5),
+            retry_budget: 0,
+        };
+
+        let error = config.validate().unwrap_err();
+        assert_eq!(error.code, "CER-NORM-CONFIG");
+        assert_eq!(
+            error.message,
+            "CERBERO_NORMALIZER_RETRY_BUDGET must be greater than zero"
+        );
     }
 
     #[test]

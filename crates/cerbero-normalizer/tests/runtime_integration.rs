@@ -22,9 +22,12 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 use uuid::Uuid;
 
+static DEVELOPMENT_RUNTIME_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires development NATS JetStream and ClickHouse"]
 async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
+    let _infrastructure_guard = DEVELOPMENT_RUNTIME_TEST_LOCK.lock().await;
     let root = TempDir::new().expect("temp Raw Store");
     let raw = b"Failed password for invalid user admin from 10.0.0.8 port 50341 ssh2";
     let event_id = Uuid::now_v7().to_string();
@@ -56,8 +59,18 @@ async fn development_sshd_ocsf_runtime_is_duplicate_safe() {
         clickhouse_database: env("CLICKHOUSE_DB"),
         clickhouse_user: env("CLICKHOUSE_NORMALIZER_USER"),
         clickhouse_password: env("CLICKHOUSE_NORMALIZER_PASSWORD"),
+        postgres_host: env("POSTGRES_HOST"),
+        postgres_port: env("POSTGRES_PORT")
+            .parse::<u16>()
+            .expect("POSTGRES_PORT must be u16"),
+        postgres_database: env("POSTGRES_DB"),
+        postgres_user: env("POSTGRES_NORMALIZER_USER"),
+        postgres_password: env("POSTGRES_NORMALIZER_PASSWORD"),
         retry_min_delay: Duration::from_millis(100),
         retry_max_delay: Duration::from_millis(250),
+        retry_budget: env("CERBERO_NORMALIZER_RETRY_BUDGET")
+            .parse::<u32>()
+            .expect("CERBERO_NORMALIZER_RETRY_BUDGET must be u32"),
     }
     .validate()
     .unwrap();
@@ -206,6 +219,7 @@ struct HistoryRow {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires development NATS JetStream and ClickHouse"]
 async fn development_execution_modes_preserve_historical_renormalization() {
+    let _infrastructure_guard = DEVELOPMENT_RUNTIME_TEST_LOCK.lock().await;
     let root = TempDir::new().expect("temp Raw Store");
     let raw = b"Failed password for invalid user admin from 10.0.0.8 port 50341 ssh2";
     let event_id = Uuid::now_v7().to_string();
@@ -370,8 +384,18 @@ fn mode_config(
         clickhouse_database: env("CLICKHOUSE_DB"),
         clickhouse_user: env("CLICKHOUSE_NORMALIZER_USER"),
         clickhouse_password: env("CLICKHOUSE_NORMALIZER_PASSWORD"),
+        postgres_host: env("POSTGRES_HOST"),
+        postgres_port: env("POSTGRES_PORT")
+            .parse::<u16>()
+            .expect("POSTGRES_PORT must be u16"),
+        postgres_database: env("POSTGRES_DB"),
+        postgres_user: env("POSTGRES_NORMALIZER_USER"),
+        postgres_password: env("POSTGRES_NORMALIZER_PASSWORD"),
         retry_min_delay: Duration::from_millis(100),
         retry_max_delay: Duration::from_millis(250),
+        retry_budget: env("CERBERO_NORMALIZER_RETRY_BUDGET")
+            .parse::<u32>()
+            .expect("CERBERO_NORMALIZER_RETRY_BUDGET must be u32"),
     }
     .validate()
     .unwrap()
