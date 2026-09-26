@@ -6,6 +6,7 @@ mod event_compiler;
 mod event_evaluator;
 mod event_optimizer;
 mod execution_plan;
+mod normalized_event;
 mod rule_contract;
 mod type_checker;
 mod validator;
@@ -26,6 +27,7 @@ pub use event_evaluator::{
 };
 pub use event_optimizer::{EventAstOptimizer, IdentityEventAstOptimizer};
 pub use execution_plan::{ExecutionBackend, ExecutionBackendCapabilities, ExecutionPlan};
+pub use normalized_event::NormalizedEventFieldView;
 pub use rule_contract::{
     AutomatedTestCoverage, RuleContractError, RuleId, RuleStatus, validate_rule_status,
 };

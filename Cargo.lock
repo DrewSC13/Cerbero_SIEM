@@ -156,6 +156,10 @@ dependencies = [
 [[package]]
 name = "cerbero-detection-core"
 version = "0.0.0"
+dependencies = [
+ "cerbero-common",
+ "prost-types",
+]
 
 [[package]]
 name = "cerbero-integrity"
