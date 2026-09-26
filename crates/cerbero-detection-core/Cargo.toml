@@ -6,5 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[dependencies]
+cerbero-common = { path = "../cerbero-common" }
+prost-types = "=0.14.4"
+
 [lints]
 workspace = true
