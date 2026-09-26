@@ -2,6 +2,10 @@
 
 mod ast;
 mod compiler_contract;
+mod event_compiler;
+mod event_evaluator;
+mod event_optimizer;
+mod execution_plan;
 mod rule_contract;
 mod type_checker;
 mod validator;
@@ -11,6 +15,17 @@ pub use ast::{
     DetectionExpression, DetectionExpressionKind, ExistsExpression,
 };
 pub use compiler_contract::{FieldTypeResolver, RuleCompilationErrorKind, require_field_type};
+pub use event_compiler::{
+    CompiledEventExecutionPlan, EventCompilationStages, EventExecutionPlanCompiler,
+    EventFieldProfile, EventFieldProfileContract, EventFieldProfileResolver,
+    compile_event_execution_plan,
+};
+pub use event_evaluator::{
+    EventEvaluationResult, EventExecutionPlanView, EventFieldState, EventFieldView,
+    EventLeafEvaluationPolicy, EventPredicate, evaluate_event_execution_plan,
+};
+pub use event_optimizer::{EventAstOptimizer, IdentityEventAstOptimizer};
+pub use execution_plan::{ExecutionBackend, ExecutionBackendCapabilities, ExecutionPlan};
 pub use rule_contract::{
     AutomatedTestCoverage, RuleContractError, RuleId, RuleStatus, validate_rule_status,
 };
