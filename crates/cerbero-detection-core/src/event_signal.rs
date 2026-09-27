@@ -14,9 +14,8 @@ use crate::{
 
 /// Minimal provenance preserved when one EVENT rule matches a canonical `NormalizedEvent`.
 ///
-/// This is deliberately not the canonical `Signal` schema. Analytical Model v1 freezes additional
-/// Signal fields whose concrete wire representation is not yet governed. This boundary preserves
-/// only the EVENT-match provenance already fixed by Detection & Correlation v1 plus execution mode.
+/// This is deliberately not the canonical `Signal` wire object. ADR-0016 governs that contract.
+/// This boundary preserves only the EVENT-match provenance required before materialization.
 #[derive(Debug, Clone)]
 pub struct EventSignalProvenance<RuleVersion> {
     pub rule_id: RuleId,
@@ -100,8 +99,8 @@ impl<PlanId, RuleVersion, RequiredFields, Predicates, Grouping, Window, Resource
 ///
 /// The function fails closed when the referenced normalized-event identity, execution timestamp, or
 /// execution mode cannot satisfy the already-governed contract. It does not allocate `signal_id`,
-/// choose Signal severity/confidence/status, persist data, publish NATS messages, or define the
-/// unresolved canonical Signal wire schema.
+/// choose Signal severity/confidence/status, persist data, publish NATS messages, or materialize
+/// the canonical Signal wire object.
 ///
 /// # Errors
 ///

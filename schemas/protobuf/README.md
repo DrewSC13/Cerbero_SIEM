@@ -9,6 +9,7 @@ The v1 source set is deliberately split by domain object:
 - `raw_event.proto` — immutable raw evidence contract;
 - `raw_event_persisted.proto` — durable Raw Store locator/metadata handoff for `raw.persisted`;
 - `normalized_event.proto` — OCSF-derived event contract;
+- `signal.proto` — canonical analytical Signal, SignalInput, status, and execution provenance contract;
 - `transformation.proto` — provenance and execution-mode contract;
 - `error.proto` — `CerberoError` and locked error categories.
 

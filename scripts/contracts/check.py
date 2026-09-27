@@ -195,6 +195,7 @@ def load_sources() -> str:
         "normalized_event.proto",
         "raw_event.proto",
         "raw_event_persisted.proto",
+        "signal.proto",
         "transformation.proto",
     }
     found = {path.name for path in files}
