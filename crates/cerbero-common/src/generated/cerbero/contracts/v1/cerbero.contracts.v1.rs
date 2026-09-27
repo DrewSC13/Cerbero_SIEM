@@ -363,6 +363,198 @@ pub struct RawEventPersisted {
     #[prost(message, optional, tag="21")]
     pub persisted_at: ::core::option::Option<::prost_types::Timestamp>,
 }
+/// SignalProvenance captures execution facts not already represented by Signal fields or inputs.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SignalProvenance {
+    #[prost(message, optional, tag="1")]
+    pub evaluated_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(enumeration="DetectionExecutionBackend", tag="2")]
+    pub execution_backend: i32,
+}
+/// SignalInput preserves one ordered object that contributed to a Signal.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SignalInput {
+    #[prost(string, tag="1")]
+    pub signal_id: ::prost::alloc::string::String,
+    #[prost(enumeration="SignalInputType", tag="2")]
+    pub input_type: i32,
+    #[prost(string, tag="3")]
+    pub input_id: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub relation: ::prost::alloc::string::String,
+    #[prost(uint32, tag="5")]
+    pub ordinal: u32,
+}
+/// Signal is the canonical v1 wire representation of an elementary detection match.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Signal {
+    #[prost(string, tag="1")]
+    pub signal_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub tenant_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub rule_id: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub rule_version: ::prost::alloc::string::String,
+    #[prost(enumeration="SignalRuleType", tag="5")]
+    pub rule_type: i32,
+    #[prost(string, tag="6")]
+    pub severity: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="7")]
+    pub confidence: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(enumeration="SignalStatus", tag="8")]
+    pub status: i32,
+    #[prost(message, optional, tag="9")]
+    pub first_observed_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="10")]
+    pub last_observed_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="11")]
+    pub created_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(enumeration="ExecutionMode", tag="12")]
+    pub execution_mode: i32,
+    #[prost(uint64, tag="13")]
+    pub source_count: u64,
+    #[prost(uint64, tag="14")]
+    pub event_count: u64,
+    #[prost(string, tag="15")]
+    pub summary: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="16")]
+    pub provenance: ::core::option::Option<SignalProvenance>,
+    #[prost(message, repeated, tag="17")]
+    pub inputs: ::prost::alloc::vec::Vec<SignalInput>,
+}
+/// SignalRuleType identifies the detection-rule family associated with a Signal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum SignalRuleType {
+    Unspecified = 0,
+    Event = 1,
+    Threshold = 2,
+    Correlation = 3,
+}
+impl SignalRuleType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "SIGNAL_RULE_TYPE_UNSPECIFIED",
+            Self::Event => "SIGNAL_RULE_TYPE_EVENT",
+            Self::Threshold => "SIGNAL_RULE_TYPE_THRESHOLD",
+            Self::Correlation => "SIGNAL_RULE_TYPE_CORRELATION",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "SIGNAL_RULE_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "SIGNAL_RULE_TYPE_EVENT" => Some(Self::Event),
+            "SIGNAL_RULE_TYPE_THRESHOLD" => Some(Self::Threshold),
+            "SIGNAL_RULE_TYPE_CORRELATION" => Some(Self::Correlation),
+            _ => None,
+        }
+    }
+}
+/// SignalStatus records the analytical lifecycle state without deleting history.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum SignalStatus {
+    Unspecified = 0,
+    Active = 1,
+    Suppressed = 2,
+    Promoted = 3,
+    Invalidated = 4,
+}
+impl SignalStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "SIGNAL_STATUS_UNSPECIFIED",
+            Self::Active => "SIGNAL_STATUS_ACTIVE",
+            Self::Suppressed => "SIGNAL_STATUS_SUPPRESSED",
+            Self::Promoted => "SIGNAL_STATUS_PROMOTED",
+            Self::Invalidated => "SIGNAL_STATUS_INVALIDATED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "SIGNAL_STATUS_UNSPECIFIED" => Some(Self::Unspecified),
+            "SIGNAL_STATUS_ACTIVE" => Some(Self::Active),
+            "SIGNAL_STATUS_SUPPRESSED" => Some(Self::Suppressed),
+            "SIGNAL_STATUS_PROMOTED" => Some(Self::Promoted),
+            "SIGNAL_STATUS_INVALIDATED" => Some(Self::Invalidated),
+            _ => None,
+        }
+    }
+}
+/// SignalInputType identifies an object that contributed to the Signal match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum SignalInputType {
+    Unspecified = 0,
+    NormalizedEvent = 1,
+    Signal = 2,
+    Entity = 3,
+}
+impl SignalInputType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "SIGNAL_INPUT_TYPE_UNSPECIFIED",
+            Self::NormalizedEvent => "SIGNAL_INPUT_TYPE_NORMALIZED_EVENT",
+            Self::Signal => "SIGNAL_INPUT_TYPE_SIGNAL",
+            Self::Entity => "SIGNAL_INPUT_TYPE_ENTITY",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "SIGNAL_INPUT_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "SIGNAL_INPUT_TYPE_NORMALIZED_EVENT" => Some(Self::NormalizedEvent),
+            "SIGNAL_INPUT_TYPE_SIGNAL" => Some(Self::Signal),
+            "SIGNAL_INPUT_TYPE_ENTITY" => Some(Self::Entity),
+            _ => None,
+        }
+    }
+}
+/// DetectionExecutionBackend identifies the backend that evaluated the detection plan.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum DetectionExecutionBackend {
+    Unspecified = 0,
+    Clickhouse = 1,
+    Stream = 2,
+}
+impl DetectionExecutionBackend {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "DETECTION_EXECUTION_BACKEND_UNSPECIFIED",
+            Self::Clickhouse => "DETECTION_EXECUTION_BACKEND_CLICKHOUSE",
+            Self::Stream => "DETECTION_EXECUTION_BACKEND_STREAM",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "DETECTION_EXECUTION_BACKEND_UNSPECIFIED" => Some(Self::Unspecified),
+            "DETECTION_EXECUTION_BACKEND_CLICKHOUSE" => Some(Self::Clickhouse),
+            "DETECTION_EXECUTION_BACKEND_STREAM" => Some(Self::Stream),
+            _ => None,
+        }
+    }
+}
 /// Transformation records provenance for a material processing step.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Transformation {

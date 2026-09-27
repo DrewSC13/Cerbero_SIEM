@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "cerbero/contracts/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// SignalRuleType identifies the detection-rule family associated with a Signal.
+enum SignalRuleType {
+  SIGNAL_RULE_TYPE_UNSPECIFIED = 0;
+  SIGNAL_RULE_TYPE_EVENT = 1;
+  SIGNAL_RULE_TYPE_THRESHOLD = 2;
+  SIGNAL_RULE_TYPE_CORRELATION = 3;
+}
+
+// SignalStatus records the analytical lifecycle state without deleting history.
+enum SignalStatus {
+  SIGNAL_STATUS_UNSPECIFIED = 0;
+  SIGNAL_STATUS_ACTIVE = 1;
+  SIGNAL_STATUS_SUPPRESSED = 2;
+  SIGNAL_STATUS_PROMOTED = 3;
+  SIGNAL_STATUS_INVALIDATED = 4;
+}
+
+// SignalInputType identifies an object that contributed to the Signal match.
+enum SignalInputType {
+  SIGNAL_INPUT_TYPE_UNSPECIFIED = 0;
+  SIGNAL_INPUT_TYPE_NORMALIZED_EVENT = 1;
+  SIGNAL_INPUT_TYPE_SIGNAL = 2;
+  SIGNAL_INPUT_TYPE_ENTITY = 3;
+}
+
+// DetectionExecutionBackend identifies the backend that evaluated the detection plan.
+enum DetectionExecutionBackend {
+  DETECTION_EXECUTION_BACKEND_UNSPECIFIED = 0;
+  DETECTION_EXECUTION_BACKEND_CLICKHOUSE = 1;
+  DETECTION_EXECUTION_BACKEND_STREAM = 2;
+}
+
+// SignalProvenance captures execution facts not already represented by Signal fields or inputs.
+message SignalProvenance {
+  google.protobuf.Timestamp evaluated_at = 1;
+  DetectionExecutionBackend execution_backend = 2;
+}
+
+// SignalInput preserves one ordered object that contributed to a Signal.
+message SignalInput {
+  string signal_id = 1;
+  SignalInputType input_type = 2;
+  string input_id = 3;
+  string relation = 4;
+  uint32 ordinal = 5;
+}
+
+// Signal is the canonical v1 wire representation of an elementary detection match.
+message Signal {
+  string signal_id = 1;
+  string tenant_id = 2;
+  string rule_id = 3;
+  string rule_version = 4;
+  SignalRuleType rule_type = 5;
+  string severity = 6;
+  optional string confidence = 7;
+  SignalStatus status = 8;
+  google.protobuf.Timestamp first_observed_at = 9;
+  google.protobuf.Timestamp last_observed_at = 10;
+  google.protobuf.Timestamp created_at = 11;
+  ExecutionMode execution_mode = 12;
+  uint64 source_count = 13;
+  uint64 event_count = 14;
+  string summary = 15;
+  SignalProvenance provenance = 16;
+  repeated SignalInput inputs = 17;
+}

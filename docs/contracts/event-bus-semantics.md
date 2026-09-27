@@ -40,6 +40,17 @@ payload          = RawEventPersisted
 
 `RawEventPersisted` carries immutable acquisition metadata plus the durable Raw Store locator and never retransmits `raw_payload`.
 
+For the canonical Signal lifecycle handoff, ADR-0016 fixes:
+
+```text
+subject          = cerbero.v1.signal.created
+message_type     = SignalCreated
+payload_schema   = cerbero.signal.v1
+payload          = Signal
+```
+
+`Signal` embeds typed execution provenance and ordered `SignalInput` relations; this contract mapping does not itself implement the runtime publisher or persistence transaction.
+
 ## ACK policy
 
 A consumer MUST acknowledge a message only after the durable effect required from that consumer has been confirmed.
