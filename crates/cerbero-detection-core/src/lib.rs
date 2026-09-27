@@ -6,6 +6,7 @@ mod event_compiler;
 mod event_evaluator;
 mod event_optimizer;
 mod event_signal;
+mod event_signal_materializer;
 mod execution_plan;
 mod normalized_event;
 mod rule_contract;
@@ -31,6 +32,7 @@ pub use event_signal::{
     EventSignalEvaluationError, EventSignalEvaluationResult, EventSignalExecutionPlanView,
     EventSignalProvenance, evaluate_normalized_event_for_signal,
 };
+pub use event_signal_materializer::{EventSignalMaterializationContext, materialize_event_signal};
 pub use execution_plan::{ExecutionBackend, ExecutionBackendCapabilities, ExecutionPlan};
 pub use normalized_event::NormalizedEventFieldView;
 pub use rule_contract::{
