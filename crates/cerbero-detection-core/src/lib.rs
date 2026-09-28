@@ -2,6 +2,7 @@
 
 mod ast;
 mod compiler_contract;
+mod correlation;
 mod event_compiler;
 mod event_evaluator;
 mod event_optimizer;
@@ -19,6 +20,11 @@ pub use ast::{
     DetectionExpression, DetectionExpressionKind, ExistsExpression,
 };
 pub use compiler_contract::{FieldTypeResolver, RuleCompilationErrorKind, require_field_type};
+pub use correlation::{
+    CompiledSequenceCorrelationPlan, SequenceCorrelationEvaluationError,
+    SequenceCorrelationEvaluationPolicy, SequenceCorrelationMatch, SequenceCorrelationRule,
+    compile_sequence_correlation_plan, evaluate_sequence_signals,
+};
 pub use event_compiler::{
     CompiledEventExecutionPlan, EventCompilationStages, EventExecutionPlanCompiler,
     EventFieldProfile, EventFieldProfileContract, EventFieldProfileResolver,
