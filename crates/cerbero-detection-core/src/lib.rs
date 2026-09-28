@@ -10,6 +10,7 @@ mod event_signal_materializer;
 mod execution_plan;
 mod normalized_event;
 mod rule_contract;
+mod threshold;
 mod type_checker;
 mod validator;
 
@@ -37,6 +38,13 @@ pub use execution_plan::{ExecutionBackend, ExecutionBackendCapabilities, Executi
 pub use normalized_event::NormalizedEventFieldView;
 pub use rule_contract::{
     AutomatedTestCoverage, RuleContractError, RuleId, RuleStatus, validate_rule_status,
+};
+pub use threshold::{
+    CompiledThresholdExecutionPlan, ThresholdAggregation, ThresholdEvaluationError,
+    ThresholdEvaluationPolicy, ThresholdLateEventPolicy, ThresholdRule,
+    ThresholdSignalMaterializationContext, ThresholdSignalProvenance, ThresholdTimeBasis,
+    ThresholdWindow, compile_threshold_execution_plan, evaluate_threshold_normalized_events,
+    materialize_threshold_signal,
 };
 pub use type_checker::{ComparisonTypePolicy, ValueTypeResolver, type_check_expression};
 pub use validator::{AstValidationError, validate_expression};
