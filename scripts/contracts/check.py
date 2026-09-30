@@ -192,6 +192,7 @@ def load_sources() -> str:
         "common.proto",
         "envelope.proto",
         "error.proto",
+        "finding.proto",
         "normalized_event.proto",
         "raw_event.proto",
         "raw_event_persisted.proto",
