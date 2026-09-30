@@ -3,6 +3,7 @@
 mod ast;
 mod compiler_contract;
 mod correlation;
+mod correlation_finding_materializer;
 mod event_compiler;
 mod event_evaluator;
 mod event_optimizer;
@@ -24,6 +25,9 @@ pub use correlation::{
     CompiledSequenceCorrelationPlan, SequenceCorrelationEvaluationError,
     SequenceCorrelationEvaluationPolicy, SequenceCorrelationMatch, SequenceCorrelationRule,
     compile_sequence_correlation_plan, evaluate_sequence_signals,
+};
+pub use correlation_finding_materializer::{
+    CorrelationFindingMaterializationContext, materialize_sequence_correlation_finding,
 };
 pub use event_compiler::{
     CompiledEventExecutionPlan, EventCompilationStages, EventExecutionPlanCompiler,

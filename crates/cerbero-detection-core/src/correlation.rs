@@ -199,11 +199,9 @@ pub trait SequenceCorrelationEvaluationPolicy<Stage, JoinKey, Ordering> {
 
 /// Deterministic pre-Finding evidence emitted by one SEQUENCE correlation match.
 ///
-/// `output_finding_id` is deliberately absent at this boundary: Detection &
-/// Correlation v1 requires it in completed correlation provenance, but Step 27
-/// does not invent a canonical Finding/FindingInput wire shape. A later governed
-/// Finding materializer will attach the allocated Finding identity while
-/// preserving these inputs unchanged.
+/// `output_finding_id` is deliberately absent at this evaluator boundary.
+/// The governed correlation Finding materializer binds producer-allocated Finding
+/// identity while preserving the deterministic correlation inputs unchanged.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SequenceCorrelationMatch {
     pub correlation_rule_id: String,
