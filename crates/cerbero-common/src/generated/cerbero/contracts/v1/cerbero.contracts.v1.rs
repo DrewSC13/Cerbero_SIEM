@@ -243,126 +243,6 @@ impl ErrorCategory {
         }
     }
 }
-/// NormalizedEvent is an OCSF derivation of an immutable RawEvent.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct NormalizedEvent {
-    #[prost(string, tag="1")]
-    pub normalized_event_id: ::prost::alloc::string::String,
-    #[prost(string, tag="2")]
-    pub raw_event_id: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub tenant_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag="4")]
-    pub normalized_at: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag="5")]
-    pub ocsf_version: ::prost::alloc::string::String,
-    #[prost(uint32, tag="6")]
-    pub class_uid: u32,
-    #[prost(uint32, tag="7")]
-    pub category_uid: u32,
-    #[prost(uint32, optional, tag="8")]
-    pub severity: ::core::option::Option<u32>,
-    #[prost(uint32, optional, tag="9")]
-    pub activity_id: ::core::option::Option<u32>,
-    #[prost(message, optional, tag="10")]
-    pub ocsf_event: ::core::option::Option<::prost_types::Struct>,
-    #[prost(string, tag="11")]
-    pub parser_id: ::prost::alloc::string::String,
-    #[prost(string, tag="12")]
-    pub parser_version: ::prost::alloc::string::String,
-    #[prost(enumeration="NormalizationStatus", tag="13")]
-    pub normalization_status: i32,
-    #[prost(string, tag="14")]
-    pub normalized_hash_algorithm: ::prost::alloc::string::String,
-    #[prost(string, tag="15")]
-    pub normalized_hash: ::prost::alloc::string::String,
-    #[prost(string, tag="16")]
-    pub pipeline_version: ::prost::alloc::string::String,
-}
-/// RawEvent preserves the exact bytes accepted at the ingest boundary and their acquisition metadata.
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RawEvent {
-    #[prost(string, tag="1")]
-    pub event_id: ::prost::alloc::string::String,
-    #[prost(string, tag="2")]
-    pub tenant_id: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub source_id: ::prost::alloc::string::String,
-    #[prost(string, tag="4")]
-    pub sensor_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag="5")]
-    pub event_time: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(message, optional, tag="6")]
-    pub ingest_time: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag="7")]
-    pub content_type: ::prost::alloc::string::String,
-    #[prost(string, tag="8")]
-    pub encoding: ::prost::alloc::string::String,
-    #[prost(bytes="vec", tag="9")]
-    pub raw_payload: ::prost::alloc::vec::Vec<u8>,
-    #[prost(uint64, tag="10")]
-    pub raw_size: u64,
-    #[prost(string, tag="11")]
-    pub raw_hash_algorithm: ::prost::alloc::string::String,
-    #[prost(string, tag="12")]
-    pub raw_hash: ::prost::alloc::string::String,
-    #[prost(string, tag="13")]
-    pub transport: ::prost::alloc::string::String,
-    #[prost(string, tag="14")]
-    pub remote_identity: ::prost::alloc::string::String,
-    #[prost(uint64, optional, tag="15")]
-    pub sequence_number: ::core::option::Option<u64>,
-    #[prost(enumeration="IntegrityStatus", tag="16")]
-    pub integrity_status: i32,
-    #[prost(string, tag="17")]
-    pub pipeline_version: ::prost::alloc::string::String,
-}
-/// RawEventPersisted references exact evidence after durable Raw Store preservation.
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RawEventPersisted {
-    #[prost(string, tag="1")]
-    pub event_id: ::prost::alloc::string::String,
-    #[prost(string, tag="2")]
-    pub tenant_id: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub source_id: ::prost::alloc::string::String,
-    #[prost(string, tag="4")]
-    pub sensor_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag="5")]
-    pub event_time: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(message, optional, tag="6")]
-    pub ingest_time: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag="7")]
-    pub content_type: ::prost::alloc::string::String,
-    #[prost(string, tag="8")]
-    pub encoding: ::prost::alloc::string::String,
-    #[prost(uint64, tag="9")]
-    pub raw_size: u64,
-    #[prost(string, tag="10")]
-    pub raw_hash_algorithm: ::prost::alloc::string::String,
-    #[prost(string, tag="11")]
-    pub raw_hash: ::prost::alloc::string::String,
-    #[prost(string, tag="12")]
-    pub transport: ::prost::alloc::string::String,
-    #[prost(string, tag="13")]
-    pub remote_identity: ::prost::alloc::string::String,
-    #[prost(uint64, optional, tag="14")]
-    pub sequence_number: ::core::option::Option<u64>,
-    #[prost(enumeration="IntegrityStatus", tag="15")]
-    pub integrity_status: i32,
-    #[prost(string, tag="16")]
-    pub pipeline_version: ::prost::alloc::string::String,
-    #[prost(string, tag="17")]
-    pub storage_uri: ::prost::alloc::string::String,
-    #[prost(string, tag="18")]
-    pub segment_id: ::prost::alloc::string::String,
-    #[prost(uint64, tag="19")]
-    pub offset: u64,
-    #[prost(uint64, tag="20")]
-    pub length: u64,
-    #[prost(message, optional, tag="21")]
-    pub persisted_at: ::core::option::Option<::prost_types::Timestamp>,
-}
 /// SignalProvenance captures execution facts not already represented by Signal fields or inputs.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SignalProvenance {
@@ -554,6 +434,323 @@ impl DetectionExecutionBackend {
             _ => None,
         }
     }
+}
+/// FindingInput preserves one explicit contributing object relation.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct FindingInput {
+    #[prost(string, tag="1")]
+    pub finding_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub input_type: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub input_id: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub relation: ::prost::alloc::string::String,
+}
+/// FindingCorrelationProvenance preserves the governed correlation execution record.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct FindingCorrelationProvenance {
+    #[prost(string, tag="1")]
+    pub correlation_rule_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub correlation_rule_version: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="3")]
+    pub window_start: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="4")]
+    pub window_end: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, repeated, tag="5")]
+    pub input_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag="6")]
+    pub output_finding_id: ::prost::alloc::string::String,
+    #[prost(enumeration="DetectionExecutionBackend", tag="7")]
+    pub execution_backend: i32,
+    #[prost(enumeration="ExecutionMode", tag="8")]
+    pub execution_mode: i32,
+    #[prost(string, tag="9")]
+    pub configuration_hash: ::prost::alloc::string::String,
+}
+/// Finding is the canonical v1 wire representation of an analytically relevant observation.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Finding {
+    #[prost(string, tag="1")]
+    pub finding_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub tenant_id: ::prost::alloc::string::String,
+    #[prost(enumeration="FindingType", tag="3")]
+    pub finding_type: i32,
+    #[prost(enumeration="FindingStatus", tag="4")]
+    pub status: i32,
+    #[prost(string, tag="5")]
+    pub severity: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="6")]
+    pub confidence: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag="7")]
+    pub title: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub description: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="9")]
+    pub first_seen: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="10")]
+    pub last_seen: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="11")]
+    pub created_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="12")]
+    pub updated_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, optional, tag="13")]
+    pub primary_rule_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag="14")]
+    pub primary_rule_version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag="15")]
+    pub correlation_rule_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag="16")]
+    pub correlation_rule_version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(enumeration="FindingDisposition", tag="17")]
+    pub disposition: i32,
+    #[prost(message, optional, tag="18")]
+    pub metadata: ::core::option::Option<::prost_types::Struct>,
+    #[prost(enumeration="ExecutionMode", tag="19")]
+    pub execution_mode: i32,
+    #[prost(message, repeated, tag="20")]
+    pub inputs: ::prost::alloc::vec::Vec<FindingInput>,
+    #[prost(message, optional, tag="21")]
+    pub correlation_provenance: ::core::option::Option<FindingCorrelationProvenance>,
+}
+/// FindingType identifies why a Finding exists analytically.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum FindingType {
+    Unspecified = 0,
+    Detection = 1,
+    Threshold = 2,
+    Correlation = 3,
+    Analytical = 4,
+}
+impl FindingType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "FINDING_TYPE_UNSPECIFIED",
+            Self::Detection => "FINDING_TYPE_DETECTION",
+            Self::Threshold => "FINDING_TYPE_THRESHOLD",
+            Self::Correlation => "FINDING_TYPE_CORRELATION",
+            Self::Analytical => "FINDING_TYPE_ANALYTICAL",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "FINDING_TYPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "FINDING_TYPE_DETECTION" => Some(Self::Detection),
+            "FINDING_TYPE_THRESHOLD" => Some(Self::Threshold),
+            "FINDING_TYPE_CORRELATION" => Some(Self::Correlation),
+            "FINDING_TYPE_ANALYTICAL" => Some(Self::Analytical),
+            _ => None,
+        }
+    }
+}
+/// FindingStatus records the current analytical lifecycle state without deleting history.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum FindingStatus {
+    Unspecified = 0,
+    Open = 1,
+    Acknowledged = 2,
+    Suppressed = 3,
+    Resolved = 4,
+    Invalidated = 5,
+}
+impl FindingStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "FINDING_STATUS_UNSPECIFIED",
+            Self::Open => "FINDING_STATUS_OPEN",
+            Self::Acknowledged => "FINDING_STATUS_ACKNOWLEDGED",
+            Self::Suppressed => "FINDING_STATUS_SUPPRESSED",
+            Self::Resolved => "FINDING_STATUS_RESOLVED",
+            Self::Invalidated => "FINDING_STATUS_INVALIDATED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "FINDING_STATUS_UNSPECIFIED" => Some(Self::Unspecified),
+            "FINDING_STATUS_OPEN" => Some(Self::Open),
+            "FINDING_STATUS_ACKNOWLEDGED" => Some(Self::Acknowledged),
+            "FINDING_STATUS_SUPPRESSED" => Some(Self::Suppressed),
+            "FINDING_STATUS_RESOLVED" => Some(Self::Resolved),
+            "FINDING_STATUS_INVALIDATED" => Some(Self::Invalidated),
+            _ => None,
+        }
+    }
+}
+/// FindingDisposition records analytical resolution separately from operational status.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum FindingDisposition {
+    Unspecified = 0,
+    Undetermined = 1,
+    TruePositive = 2,
+    BenignTruePositive = 3,
+    FalsePositive = 4,
+    Duplicate = 5,
+    TestActivity = 6,
+}
+impl FindingDisposition {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "FINDING_DISPOSITION_UNSPECIFIED",
+            Self::Undetermined => "FINDING_DISPOSITION_UNDETERMINED",
+            Self::TruePositive => "FINDING_DISPOSITION_TRUE_POSITIVE",
+            Self::BenignTruePositive => "FINDING_DISPOSITION_BENIGN_TRUE_POSITIVE",
+            Self::FalsePositive => "FINDING_DISPOSITION_FALSE_POSITIVE",
+            Self::Duplicate => "FINDING_DISPOSITION_DUPLICATE",
+            Self::TestActivity => "FINDING_DISPOSITION_TEST_ACTIVITY",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "FINDING_DISPOSITION_UNSPECIFIED" => Some(Self::Unspecified),
+            "FINDING_DISPOSITION_UNDETERMINED" => Some(Self::Undetermined),
+            "FINDING_DISPOSITION_TRUE_POSITIVE" => Some(Self::TruePositive),
+            "FINDING_DISPOSITION_BENIGN_TRUE_POSITIVE" => Some(Self::BenignTruePositive),
+            "FINDING_DISPOSITION_FALSE_POSITIVE" => Some(Self::FalsePositive),
+            "FINDING_DISPOSITION_DUPLICATE" => Some(Self::Duplicate),
+            "FINDING_DISPOSITION_TEST_ACTIVITY" => Some(Self::TestActivity),
+            _ => None,
+        }
+    }
+}
+/// NormalizedEvent is an OCSF derivation of an immutable RawEvent.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct NormalizedEvent {
+    #[prost(string, tag="1")]
+    pub normalized_event_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub raw_event_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub tenant_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="4")]
+    pub normalized_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="5")]
+    pub ocsf_version: ::prost::alloc::string::String,
+    #[prost(uint32, tag="6")]
+    pub class_uid: u32,
+    #[prost(uint32, tag="7")]
+    pub category_uid: u32,
+    #[prost(uint32, optional, tag="8")]
+    pub severity: ::core::option::Option<u32>,
+    #[prost(uint32, optional, tag="9")]
+    pub activity_id: ::core::option::Option<u32>,
+    #[prost(message, optional, tag="10")]
+    pub ocsf_event: ::core::option::Option<::prost_types::Struct>,
+    #[prost(string, tag="11")]
+    pub parser_id: ::prost::alloc::string::String,
+    #[prost(string, tag="12")]
+    pub parser_version: ::prost::alloc::string::String,
+    #[prost(enumeration="NormalizationStatus", tag="13")]
+    pub normalization_status: i32,
+    #[prost(string, tag="14")]
+    pub normalized_hash_algorithm: ::prost::alloc::string::String,
+    #[prost(string, tag="15")]
+    pub normalized_hash: ::prost::alloc::string::String,
+    #[prost(string, tag="16")]
+    pub pipeline_version: ::prost::alloc::string::String,
+}
+/// RawEvent preserves the exact bytes accepted at the ingest boundary and their acquisition metadata.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RawEvent {
+    #[prost(string, tag="1")]
+    pub event_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub tenant_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub source_id: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub sensor_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub event_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="6")]
+    pub ingest_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="7")]
+    pub content_type: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub encoding: ::prost::alloc::string::String,
+    #[prost(bytes="vec", tag="9")]
+    pub raw_payload: ::prost::alloc::vec::Vec<u8>,
+    #[prost(uint64, tag="10")]
+    pub raw_size: u64,
+    #[prost(string, tag="11")]
+    pub raw_hash_algorithm: ::prost::alloc::string::String,
+    #[prost(string, tag="12")]
+    pub raw_hash: ::prost::alloc::string::String,
+    #[prost(string, tag="13")]
+    pub transport: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub remote_identity: ::prost::alloc::string::String,
+    #[prost(uint64, optional, tag="15")]
+    pub sequence_number: ::core::option::Option<u64>,
+    #[prost(enumeration="IntegrityStatus", tag="16")]
+    pub integrity_status: i32,
+    #[prost(string, tag="17")]
+    pub pipeline_version: ::prost::alloc::string::String,
+}
+/// RawEventPersisted references exact evidence after durable Raw Store preservation.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RawEventPersisted {
+    #[prost(string, tag="1")]
+    pub event_id: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub tenant_id: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub source_id: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub sensor_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag="5")]
+    pub event_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag="6")]
+    pub ingest_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag="7")]
+    pub content_type: ::prost::alloc::string::String,
+    #[prost(string, tag="8")]
+    pub encoding: ::prost::alloc::string::String,
+    #[prost(uint64, tag="9")]
+    pub raw_size: u64,
+    #[prost(string, tag="10")]
+    pub raw_hash_algorithm: ::prost::alloc::string::String,
+    #[prost(string, tag="11")]
+    pub raw_hash: ::prost::alloc::string::String,
+    #[prost(string, tag="12")]
+    pub transport: ::prost::alloc::string::String,
+    #[prost(string, tag="13")]
+    pub remote_identity: ::prost::alloc::string::String,
+    #[prost(uint64, optional, tag="14")]
+    pub sequence_number: ::core::option::Option<u64>,
+    #[prost(enumeration="IntegrityStatus", tag="15")]
+    pub integrity_status: i32,
+    #[prost(string, tag="16")]
+    pub pipeline_version: ::prost::alloc::string::String,
+    #[prost(string, tag="17")]
+    pub storage_uri: ::prost::alloc::string::String,
+    #[prost(string, tag="18")]
+    pub segment_id: ::prost::alloc::string::String,
+    #[prost(uint64, tag="19")]
+    pub offset: u64,
+    #[prost(uint64, tag="20")]
+    pub length: u64,
+    #[prost(message, optional, tag="21")]
+    pub persisted_at: ::core::option::Option<::prost_types::Timestamp>,
 }
 /// Transformation records provenance for a material processing step.
 #[derive(Clone, PartialEq, ::prost::Message)]

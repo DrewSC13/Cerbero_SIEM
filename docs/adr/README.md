@@ -30,4 +30,5 @@ Current accepted ADRs:
 - ADR-0013 — normalization DLQ record v1;
 - ADR-0014 — Source timestamp policy v1;
 - ADR-0015 — normalizer execution domains v1;
-- ADR-0016 — canonical Signal contract v1.
+- ADR-0016 — canonical Signal contract v1;
+- ADR-0017 — canonical Finding contract v1.

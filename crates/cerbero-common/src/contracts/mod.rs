@@ -9,9 +9,11 @@ pub mod v1 {
     ));
 }
 
+mod finding_validation;
 mod signal_validation;
 mod validation;
 
+pub use finding_validation::validate_finding;
 pub use signal_validation::validate_signal;
 pub use validation::{
     ContractViolation, sha256_lower_hex, validate_envelope, validate_normalized_event,

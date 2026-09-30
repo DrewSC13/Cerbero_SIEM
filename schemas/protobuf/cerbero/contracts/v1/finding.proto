@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "cerbero/contracts/v1/common.proto";
+import "cerbero/contracts/v1/signal.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// FindingType identifies why a Finding exists analytically.
+enum FindingType {
+  FINDING_TYPE_UNSPECIFIED = 0;
+  FINDING_TYPE_DETECTION = 1;
+  FINDING_TYPE_THRESHOLD = 2;
+  FINDING_TYPE_CORRELATION = 3;
+  FINDING_TYPE_ANALYTICAL = 4;
+}
+
+// FindingStatus records the current analytical lifecycle state without deleting history.
+enum FindingStatus {
+  FINDING_STATUS_UNSPECIFIED = 0;
+  FINDING_STATUS_OPEN = 1;
+  FINDING_STATUS_ACKNOWLEDGED = 2;
+  FINDING_STATUS_SUPPRESSED = 3;
+  FINDING_STATUS_RESOLVED = 4;
+  FINDING_STATUS_INVALIDATED = 5;
+}
+
+// FindingDisposition records analytical resolution separately from operational status.
+enum FindingDisposition {
+  FINDING_DISPOSITION_UNSPECIFIED = 0;
+  FINDING_DISPOSITION_UNDETERMINED = 1;
+  FINDING_DISPOSITION_TRUE_POSITIVE = 2;
+  FINDING_DISPOSITION_BENIGN_TRUE_POSITIVE = 3;
+  FINDING_DISPOSITION_FALSE_POSITIVE = 4;
+  FINDING_DISPOSITION_DUPLICATE = 5;
+  FINDING_DISPOSITION_TEST_ACTIVITY = 6;
+}
+
+// FindingInput preserves one explicit contributing object relation.
+message FindingInput {
+  string finding_id = 1;
+  string input_type = 2;
+  string input_id = 3;
+  string relation = 4;
+}
+
+// FindingCorrelationProvenance preserves the governed correlation execution record.
+message FindingCorrelationProvenance {
+  string correlation_rule_id = 1;
+  string correlation_rule_version = 2;
+  google.protobuf.Timestamp window_start = 3;
+  google.protobuf.Timestamp window_end = 4;
+  repeated string input_ids = 5;
+  string output_finding_id = 6;
+  DetectionExecutionBackend execution_backend = 7;
+  ExecutionMode execution_mode = 8;
+  string configuration_hash = 9;
+}
+
+// Finding is the canonical v1 wire representation of an analytically relevant observation.
+message Finding {
+  string finding_id = 1;
+  string tenant_id = 2;
+  FindingType finding_type = 3;
+  FindingStatus status = 4;
+  string severity = 5;
+  optional string confidence = 6;
+  string title = 7;
+  string description = 8;
+  google.protobuf.Timestamp first_seen = 9;
+  google.protobuf.Timestamp last_seen = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+  optional string primary_rule_id = 13;
+  optional string primary_rule_version = 14;
+  optional string correlation_rule_id = 15;
+  optional string correlation_rule_version = 16;
+  FindingDisposition disposition = 17;
+  google.protobuf.Struct metadata = 18;
+  ExecutionMode execution_mode = 19;
+  repeated FindingInput inputs = 20;
+  FindingCorrelationProvenance correlation_provenance = 21;
+}
