@@ -49,6 +49,10 @@ echo "Step 30 MVP batch EVENT/THRESHOLD/SEQUENCE durable integration: PASS"
     false
   }
 
+  if [[ -z "${STEP30_API_E2E_URL:-}" ]]; then
+    : "${CERBERO_API_LISTEN_ADDRESS:?CERBERO_API_LISTEN_ADDRESS is required}"
+    STEP30_API_E2E_URL="http://${CERBERO_API_LISTEN_ADDRESS}"
+  fi
   : "${STEP30_API_E2E_URL:?STEP30_API_E2E_URL is required}"
 
   api_tmp="$(mktemp -d)"
