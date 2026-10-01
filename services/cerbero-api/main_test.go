@@ -7,6 +7,6 @@ func TestBootstrapIdentity(t *testing.T) {
 		t.Fatalf("unexpected component name: %q", componentName)
 	}
 	if architectureBaseline != "v1.0" {
-		t.Fatalf("unexpected architecture baseline: %q", architectureBaseline)
+		t.Fatalf("unexpected baseline: %q", architectureBaseline)
 	}
 }
