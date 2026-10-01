@@ -19,6 +19,10 @@ set +a
 : "${POSTGRES_NORMALIZER_PASSWORD:?POSTGRES_NORMALIZER_PASSWORD is required}"
 : "${POSTGRES_WORKER_USER:?POSTGRES_WORKER_USER is required}"
 : "${POSTGRES_WORKER_PASSWORD:?POSTGRES_WORKER_PASSWORD is required}"
+: "${POSTGRES_DETECTION_USER:?POSTGRES_DETECTION_USER is required}"
+: "${POSTGRES_DETECTION_PASSWORD:?POSTGRES_DETECTION_PASSWORD is required}"
+: "${POSTGRES_API_USER:?POSTGRES_API_USER is required}"
+: "${POSTGRES_API_PASSWORD:?POSTGRES_API_PASSWORD is required}"
 
 if [[ "$POSTGRES_RAW_PRESERVER_USER" == "$POSTGRES_USER" ]]; then
   echo "raw-preserver PostgreSQL login must differ from development admin" >&2
@@ -119,4 +123,22 @@ SELECT format(
 \gexec
 SQL
 
-echo "development raw-preserver + normalizer + worker PostgreSQL logins: PASS"
+docker compose --env-file .env -f deploy/compose/compose.yaml exec -T postgres \
+  psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=1 \
+    --set detection_user="$POSTGRES_DETECTION_USER" --set detection_password="$POSTGRES_DETECTION_PASSWORD" \
+    --set api_user="$POSTGRES_API_USER" --set api_password="$POSTGRES_API_PASSWORD" <<'SQL'
+SELECT format('CREATE ROLE %I LOGIN', :'detection_user') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'detection_user')
+\gexec
+SELECT format('ALTER ROLE %I PASSWORD %L', :'detection_user', :'detection_password')
+\gexec
+SELECT format('GRANT cerbero_detection TO %I', :'detection_user')
+\gexec
+SELECT format('CREATE ROLE %I LOGIN', :'api_user') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'api_user')
+\gexec
+SELECT format('ALTER ROLE %I PASSWORD %L', :'api_user', :'api_password')
+\gexec
+SELECT format('GRANT cerbero_api TO %I', :'api_user')
+\gexec
+SQL
+
+echo "development raw-preserver + normalizer + worker + detection + api PostgreSQL logins: PASS"

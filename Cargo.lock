@@ -162,6 +162,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cerbero-detection-runtime"
+version = "0.0.0"
+dependencies = [
+ "cerbero-common",
+ "cerbero-detection-core",
+ "prost",
+ "prost-types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-postgres",
+ "uuid",
+]
+
+[[package]]
 name = "cerbero-integrity"
 version = "0.0.0"
 

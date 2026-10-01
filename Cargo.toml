@@ -4,6 +4,7 @@ members = [
     "crates/cerbero-agent",
     "crates/cerbero-common",
     "crates/cerbero-detection-core",
+    "crates/cerbero-detection-runtime",
     "crates/cerbero-integrity",
     "crates/cerbero-normalizer",
     "crates/cerbero-tui",

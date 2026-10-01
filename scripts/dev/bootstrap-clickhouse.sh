@@ -16,6 +16,8 @@ set +a
 : "${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}"
 : "${CLICKHOUSE_NORMALIZER_USER:?CLICKHOUSE_NORMALIZER_USER is required}"
 : "${CLICKHOUSE_NORMALIZER_PASSWORD:?CLICKHOUSE_NORMALIZER_PASSWORD is required}"
+: "${CLICKHOUSE_DETECTION_USER:?CLICKHOUSE_DETECTION_USER is required}"
+: "${CLICKHOUSE_DETECTION_PASSWORD:?CLICKHOUSE_DETECTION_PASSWORD is required}"
 
 if [[ ! "$CLICKHOUSE_NORMALIZER_USER" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
   echo "CLICKHOUSE_NORMALIZER_USER must be a simple ClickHouse identifier" >&2
@@ -27,12 +29,24 @@ if [[ "$CLICKHOUSE_NORMALIZER_USER" == "$CLICKHOUSE_USER" ]]; then
   exit 1
 fi
 
+if [[ ! "$CLICKHOUSE_DETECTION_USER" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+  echo "CLICKHOUSE_DETECTION_USER must be a simple ClickHouse identifier" >&2
+  exit 1
+fi
+
+if [[ "$CLICKHOUSE_DETECTION_USER" == "$CLICKHOUSE_USER" || "$CLICKHOUSE_DETECTION_USER" == "$CLICKHOUSE_NORMALIZER_USER" ]]; then
+  echo "detection ClickHouse login must differ from development admin and normalizer" >&2
+  exit 1
+fi
+
 quote_sql_string() {
   printf "%s" "$1" | sed "s/'/''/g"
 }
 
 normalizer_user="$(quote_sql_string "$CLICKHOUSE_NORMALIZER_USER")"
 normalizer_password="$(quote_sql_string "$CLICKHOUSE_NORMALIZER_PASSWORD")"
+detection_user="$(quote_sql_string "$CLICKHOUSE_DETECTION_USER")"
+detection_password="$(quote_sql_string "$CLICKHOUSE_DETECTION_PASSWORD")"
 
 docker compose --env-file .env -f deploy/compose/compose.yaml exec -T clickhouse \
   clickhouse-client \
@@ -46,6 +60,13 @@ ALTER USER \
   \`$normalizer_user\` \
   IDENTIFIED WITH plaintext_password BY '$normalizer_password';
 GRANT SELECT, INSERT ON ${CLICKHOUSE_DB}.normalized_events TO \`$normalizer_user\`;
+CREATE USER IF NOT EXISTS \
+  \`$detection_user\` \
+  IDENTIFIED WITH plaintext_password BY '$detection_password';
+ALTER USER \
+  \`$detection_user\` \
+  IDENTIFIED WITH plaintext_password BY '$detection_password';
+GRANT SELECT ON ${CLICKHOUSE_DB}.normalized_events TO \`$detection_user\`;
 SQL
 
-echo "development normalizer ClickHouse login: PASS"
+echo "development normalizer + detection ClickHouse logins: PASS"
