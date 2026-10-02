@@ -189,10 +189,14 @@ def normalized_type(type_name: str) -> str:
 def load_sources() -> str:
     files = sorted(PROTO_ROOT.glob("*.proto"))
     expected_files = {
+        "audit.proto",
+        "case.proto",
         "common.proto",
+        "entity.proto",
         "envelope.proto",
         "error.proto",
         "finding.proto",
+        "incident.proto",
         "normalized_event.proto",
         "raw_event.proto",
         "raw_event_persisted.proto",

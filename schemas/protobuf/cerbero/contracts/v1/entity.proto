@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// EntityType identifies the initial canonical entity families.
+enum EntityType {
+  ENTITY_TYPE_UNSPECIFIED = 0;
+  ENTITY_TYPE_HOST = 1;
+  ENTITY_TYPE_USER = 2;
+  ENTITY_TYPE_ACCOUNT = 3;
+  ENTITY_TYPE_IP = 4;
+  ENTITY_TYPE_PROCESS = 5;
+  ENTITY_TYPE_FILE = 6;
+  ENTITY_TYPE_CONTAINER = 7;
+  ENTITY_TYPE_SERVICE = 8;
+  ENTITY_TYPE_APPLICATION = 9;
+}
+
+// FindingEntityRole records how an Entity participates in a Finding.
+enum FindingEntityRole {
+  FINDING_ENTITY_ROLE_UNSPECIFIED = 0;
+  FINDING_ENTITY_ROLE_SUBJECT = 1;
+  FINDING_ENTITY_ROLE_SOURCE = 2;
+  FINDING_ENTITY_ROLE_DESTINATION = 3;
+  FINDING_ENTITY_ROLE_ACTOR = 4;
+  FINDING_ENTITY_ROLE_TARGET = 5;
+  FINDING_ENTITY_ROLE_AFFECTED = 6;
+  FINDING_ENTITY_ROLE_RELATED = 7;
+}
+
+// Entity is the canonical tenant-scoped identity used by the risk ledger.
+message Entity {
+  string entity_id = 1;
+  string tenant_id = 2;
+  EntityType entity_type = 3;
+  string canonical_key = 4;
+  google.protobuf.Timestamp first_seen = 5;
+  google.protobuf.Timestamp last_seen = 6;
+  optional string criticality = 7;
+  google.protobuf.Struct attributes = 8;
+  string risk_score = 9;
+}
+
+// FindingEntity preserves an explicit analytical relationship without destructive identity merging.
+message FindingEntity {
+  string finding_id = 1;
+  string entity_id = 2;
+  FindingEntityRole role = 3;
+  optional string confidence = 4;
+}
+
+// RiskContribution is one reconstructible ledger entry. It does not freeze the aggregate risk formula.
+message RiskContribution {
+  string contribution_id = 1;
+  string tenant_id = 2;
+  string entity_id = 3;
+  string finding_id = 4;
+  string amount = 5;
+  string severity = 6;
+  optional string confidence = 7;
+  string reason = 8;
+  optional string rule_id = 9;
+  optional string rule_version = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp expires_at = 12;
+}

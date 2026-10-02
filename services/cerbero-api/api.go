@@ -78,7 +78,10 @@ func tableFor(kind string) (string, string, error) {
 	}
 }
 
-type apiServer struct{ store analyticalStore }
+type apiServer struct {
+	store       analyticalStore
+	operational operationalStore
+}
 
 func newAPIServer(store analyticalStore) http.Handler {
 	server := &apiServer{store: store}
@@ -87,8 +90,27 @@ func newAPIServer(store analyticalStore) http.Handler {
 	mux.HandleFunc("GET /api/v1/signals/{id}", server.get("signals"))
 	mux.HandleFunc("GET /api/v1/findings", server.list("findings"))
 	mux.HandleFunc("GET /api/v1/findings/{id}", server.get("findings"))
+	if operational, ok := store.(operationalStore); ok {
+		server.operational = operational
+		mux.HandleFunc("GET /api/v1/entities", server.listEntities)
+		mux.HandleFunc("GET /api/v1/entities/{id}", server.getEntity)
+		mux.HandleFunc("GET /api/v1/entities/{id}/risk-contributions", server.listEntityRiskContributions)
+		mux.HandleFunc("GET /api/v1/findings/{id}/entities", server.listFindingEntities)
+		mux.HandleFunc("GET /api/v1/incidents", server.listIncidents)
+		mux.HandleFunc("GET /api/v1/incidents/{id}", server.getIncident)
+		mux.HandleFunc("PATCH /api/v1/incidents/{id}", server.patchIncident)
+		mux.HandleFunc("POST /api/v1/cases", server.createCase)
+		mux.HandleFunc("GET /api/v1/cases", server.listCases)
+		mux.HandleFunc("GET /api/v1/cases/{id}", server.getCase)
+		mux.HandleFunc("PATCH /api/v1/cases/{id}", server.patchCase)
+		mux.HandleFunc("GET /api/v1/cases/{id}/timeline", server.getCaseTimeline)
+		mux.HandleFunc("GET /api/v1/audit", server.listAudit)
+	}
 	return requestID(mux)
 }
+
+type requestIDContextKey struct{}
+
 func requestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-ID")
@@ -101,8 +123,14 @@ func requestID(next http.Handler) http.Handler {
 			id = generated.String()
 		}
 		w.Header().Set("X-Request-ID", id)
-		next.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), requestIDContextKey{}, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func requestIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(requestIDContextKey{}).(string)
+	return id
 }
 func (server *apiServer) list(kind string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

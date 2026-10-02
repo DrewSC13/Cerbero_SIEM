@@ -13,7 +13,7 @@ type apiConfig struct {
 
 func loadAPIConfig(getenv func(string) string) (apiConfig, error) {
 	if getenv("CERBERO_SECURITY_PROFILE") != "DEVELOPMENT" {
-		return apiConfig{}, fmt.Errorf("Step 30 API is development-only until RBAC is wired")
+		return apiConfig{}, fmt.Errorf("Cerbero API is development-only until authentication/RBAC is wired")
 	}
 	listen, host, port, database := getenv("CERBERO_API_LISTEN_ADDRESS"), getenv("POSTGRES_HOST"), getenv("POSTGRES_PORT"), getenv("POSTGRES_DB")
 	user, password := getenv("POSTGRES_API_USER"), getenv("POSTGRES_API_PASSWORD")

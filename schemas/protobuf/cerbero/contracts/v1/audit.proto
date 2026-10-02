@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// AuditEvent is append-only history for administrative and operational mutations.
+message AuditEvent {
+  string audit_event_id = 1;
+  string tenant_id = 2;
+  string event_type = 3;
+  string actor_type = 4;
+  string actor_id = 5;
+  string action = 6;
+  string object_type = 7;
+  string object_id = 8;
+  optional string request_id = 9;
+  google.protobuf.Timestamp occurred_at = 10;
+  optional string reason = 11;
+  google.protobuf.Struct before_state = 12;
+  google.protobuf.Struct after_state = 13;
+  string result = 14;
+  google.protobuf.Struct metadata = 15;
+}
