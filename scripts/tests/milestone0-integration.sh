@@ -207,6 +207,8 @@ echo "Step 30 MVP batch EVENT/THRESHOLD/SEQUENCE durable integration: PASS"
 echo "Step 30 Signal/Finding HTTP API visibility integration: PASS"
 ./scripts/tests/step31-operational-api.sh
 echo "Step 31 Entity/Risk + Incident/Case + Audit operational integration: PASS"
+./scripts/tests/step32-search-api.sh
+echo "Step 32 Search API + minimal operational TUI integration: PASS"
 echo "Milestone 2 NATS-outage integration: PASS"
 echo "Milestone 2 JSON/HTTP durable-ingest runtime integration: PASS"
 echo "Milestone 3 durable raw-preservation runtime integration: PASS"

@@ -1,6 +1,6 @@
 [package]
 name = "cerbero-tui"
-description = "CERBERO terminal-first client bootstrap."
+description = "CERBERO terminal-first operational API client."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,6 +8,13 @@ license.workspace = true
 
 [dependencies]
 cerbero-common = { path = "../cerbero-common" }
+crossterm = "=0.28.1"
+ratatui = { version = "=0.29.0", default-features = false, features = ["crossterm"] }
+reqwest = { version = "=0.12.24", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
+time = { version = "=0.3.55", features = ["formatting"] }
+tokio = { version = "=1.48.0", features = ["macros", "rt-multi-thread", "sync"] }
 
 [lints]
 workspace = true
