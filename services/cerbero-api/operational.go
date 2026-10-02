@@ -906,22 +906,6 @@ FROM (
     UNION ALL
 
     SELECT
-        entity.first_seen,
-        'ENTITY'::text,
-        entity.entity_id::text,
-        entity.canonical_key,
-        ''::text,
-        'case_entities'::text,
-        jsonb_build_object('entity_type', entity.entity_type, 'risk_score', entity.risk_score)
-    FROM investigation.case_entities AS relation
-    JOIN risk.entities AS entity
-      ON entity.tenant_id = relation.tenant_id
-     AND entity.entity_id = relation.entity_id
-    WHERE relation.tenant_id = $1 AND relation.case_id = $2
-
-    UNION ALL
-
-    SELECT
         event.occurred_at,
         'AUDIT'::text,
         event.audit_event_id::text,

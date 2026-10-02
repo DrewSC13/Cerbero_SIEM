@@ -330,9 +330,13 @@ case_wrong_tenant_code="$(curl -sS -o "$api_tmp/case-wrong-tenant.json" -w '%{ht
 
 timeline_code="$(curl -sS -o "$api_tmp/timeline.json" -w '%{http_code}' -H "X-Cerbero-Tenant-ID: $tenant_id" "$STEP31_API_E2E_URL/api/v1/cases/$case_id/timeline")"
 [[ "$timeline_code" == "200" ]] || { cat "$api_tmp/timeline.json" >&2; false; }
-for marker in '"entry_type":"INCIDENT"' '"entry_type":"FINDING"' '"entry_type":"ENTITY"' '"entry_type":"AUDIT"'; do
+for marker in '"entry_type":"INCIDENT"' '"entry_type":"FINDING"' '"entry_type":"AUDIT"'; do
   grep -Fq "$marker" "$api_tmp/timeline.json" || { cat "$api_tmp/timeline.json" >&2; false; }
 done
+if grep -Fq '"entry_type":"ENTITY"' "$api_tmp/timeline.json"; then
+  cat "$api_tmp/timeline.json" >&2
+  false
+fi
 
 audit_code="$(curl -sS -o "$api_tmp/audit.json" -w '%{http_code}' -H "X-Cerbero-Tenant-ID: $tenant_id" "$STEP31_API_E2E_URL/api/v1/audit?object_type=case&object_id=$case_id")"
 [[ "$audit_code" == "200" ]] || { cat "$api_tmp/audit.json" >&2; false; }
