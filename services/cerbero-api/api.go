@@ -81,15 +81,25 @@ func tableFor(kind string) (string, string, error) {
 type apiServer struct {
 	store       analyticalStore
 	operational operationalStore
+	search      searchStore
 }
 
 func newAPIServer(store analyticalStore) http.Handler {
-	server := &apiServer{store: store}
+	return newAPIServerWithSearch(store, nil)
+}
+
+func newAPIServerWithSearch(store analyticalStore, search searchStore) http.Handler {
+	server := &apiServer{store: store, search: search}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/signals", server.list("signals"))
 	mux.HandleFunc("GET /api/v1/signals/{id}", server.get("signals"))
 	mux.HandleFunc("GET /api/v1/findings", server.list("findings"))
 	mux.HandleFunc("GET /api/v1/findings/{id}", server.get("findings"))
+	if search != nil {
+		mux.HandleFunc("POST /api/v1/search", server.searchEvents)
+		mux.HandleFunc("GET /api/v1/events", server.listEvents)
+		mux.HandleFunc("GET /api/v1/events/{id}", server.getEvent)
+	}
 	if operational, ok := store.(operationalStore); ok {
 		server.operational = operational
 		mux.HandleFunc("GET /api/v1/entities", server.listEntities)

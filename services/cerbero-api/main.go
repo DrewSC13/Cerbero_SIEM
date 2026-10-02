@@ -28,7 +28,21 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.pool.Close()
-	server := &http.Server{Addr: config.listen, Handler: newAPIServer(store), ReadHeaderTimeout: 5 * time.Second}
+	search, err := newClickHouseSearchStore(
+		config.clickhouseURL,
+		config.clickhouseDatabase,
+		config.clickhouseUser,
+		config.clickhousePassword,
+	)
+	if err != nil {
+		logger.Error("clickhouse search configuration error", "error", err)
+		os.Exit(1)
+	}
+	server := &http.Server{
+		Addr:              config.listen,
+		Handler:           newAPIServerWithSearch(store, search),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
