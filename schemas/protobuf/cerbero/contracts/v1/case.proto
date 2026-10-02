@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// CaseStatus is the governed investigation lifecycle.
+enum CaseStatus {
+  CASE_STATUS_UNSPECIFIED = 0;
+  CASE_STATUS_OPEN = 1;
+  CASE_STATUS_TRIAGE = 2;
+  CASE_STATUS_INVESTIGATING = 3;
+  CASE_STATUS_ON_HOLD = 4;
+  CASE_STATUS_RESPONSE = 5;
+  CASE_STATUS_RESOLVED = 6;
+  CASE_STATUS_CLOSED = 7;
+}
+
+// CasePriority represents operational urgency independently from severity.
+enum CasePriority {
+  CASE_PRIORITY_UNSPECIFIED = 0;
+  CASE_PRIORITY_P1_CRITICAL = 1;
+  CASE_PRIORITY_P2_HIGH = 2;
+  CASE_PRIORITY_P3_MEDIUM = 3;
+  CASE_PRIORITY_P4_LOW = 4;
+}
+
+// CaseDisposition records the investigation outcome separately from status.
+enum CaseDisposition {
+  CASE_DISPOSITION_UNSPECIFIED = 0;
+  CASE_DISPOSITION_UNDETERMINED = 1;
+  CASE_DISPOSITION_CONFIRMED_INCIDENT = 2;
+  CASE_DISPOSITION_BENIGN_ACTIVITY = 3;
+  CASE_DISPOSITION_FALSE_POSITIVE = 4;
+  CASE_DISPOSITION_DUPLICATE = 5;
+  CASE_DISPOSITION_TEST = 6;
+  CASE_DISPOSITION_OTHER = 7;
+}
+
+// Case is the managed investigation workspace; relationships remain explicit.
+message Case {
+  string case_id = 1;
+  string tenant_id = 2;
+  string case_number = 3;
+  CaseStatus status = 4;
+  CasePriority priority = 5;
+  string title = 6;
+  string description = 7;
+  optional string owner_user_id = 8;
+  string created_by = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  google.protobuf.Timestamp closed_at = 12;
+  CaseDisposition disposition = 13;
+  optional string closure_reason = 14;
+  uint64 version = 15;
+  repeated string incident_ids = 16;
+  repeated string finding_ids = 17;
+  repeated string entity_ids = 18;
+}

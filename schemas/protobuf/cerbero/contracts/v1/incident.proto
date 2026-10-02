@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package cerbero.contracts.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "cerbero/services/internal/contracts/v1;contractsv1";
+
+// IncidentStatus is the governed operational Incident state machine.
+enum IncidentStatus {
+  INCIDENT_STATUS_UNSPECIFIED = 0;
+  INCIDENT_STATUS_OPEN = 1;
+  INCIDENT_STATUS_TRIAGED = 2;
+  INCIDENT_STATUS_INVESTIGATING = 3;
+  INCIDENT_STATUS_CONTAINED = 4;
+  INCIDENT_STATUS_RESOLVED = 5;
+  INCIDENT_STATUS_CLOSED = 6;
+  INCIDENT_STATUS_INVALIDATED = 7;
+}
+
+// Incident groups related Findings while preserving the distinction from a Case.
+message Incident {
+  string incident_id = 1;
+  string tenant_id = 2;
+  IncidentStatus status = 3;
+  string severity = 4;
+  optional string confidence = 5;
+  string title = 6;
+  string description = 7;
+  google.protobuf.Timestamp first_seen = 8;
+  google.protobuf.Timestamp last_seen = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  optional string correlation_reason = 12;
+  optional string correlation_rule_id = 13;
+  optional string correlation_rule_version = 14;
+  google.protobuf.Timestamp window_start = 15;
+  google.protobuf.Timestamp window_end = 16;
+  optional string owner_user_id = 17;
+  optional string disposition = 18;
+  uint64 version = 19;
+  repeated string finding_ids = 20;
+}
