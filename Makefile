@@ -95,8 +95,6 @@ reproducibility: ## Run the full E2E twice and compare semantic/environment evid
 milestone0-e2e-boundary: ## Retain the historical staged E2E honesty gate.
 	@./scripts/tests/milestone0-e2e-gate.sh
 
-	@./scripts/tests/milestone0-e2e-gate.sh
-
 ci: verify format lint build test stable-detection architecture-evidence mvp-gap-audit security-check contracts ## Local equivalent of the required CI gate.
 	@echo "CERBERO local CI gate: PASS"
 
