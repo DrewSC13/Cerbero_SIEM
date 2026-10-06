@@ -13,20 +13,20 @@ use cerbero_common::contracts::{
     validate_timestamp, validate_uuid_v7,
 };
 use cerbero_detection_core::{
-    BooleanExpression, ComparisonExpression, ComparisonOperator, ComparisonTypePolicy,
-    CompiledEventExecutionPlan, CompiledThresholdExecutionPlan,
+    AutomatedTestCoverage, BooleanExpression, ComparisonExpression, ComparisonOperator,
+    ComparisonTypePolicy, CompiledEventExecutionPlan, CompiledThresholdExecutionPlan,
     CorrelationFindingMaterializationContext, DetectionExpression, EventCompilationStages,
     EventExecutionPlanCompiler, EventFieldProfile, EventFieldProfileResolver, EventFieldState,
     EventFieldView, EventLeafEvaluationPolicy, EventPredicate, EventSignalEvaluationResult,
     EventSignalMaterializationContext, ExecutionBackend, ExecutionBackendCapabilities,
     ExecutionPlan, FieldTypeResolver, IdentityEventAstOptimizer, RuleCompilationErrorKind, RuleId,
-    SequenceCorrelationEvaluationPolicy, SequenceCorrelationRule, ThresholdAggregation,
-    ThresholdEvaluationPolicy, ThresholdLateEventPolicy, ThresholdRule,
-    ThresholdSignalMaterializationContext, ThresholdTimeBasis, ThresholdWindow, ValueTypeResolver,
+    SequenceCorrelationEvaluationPolicy, SequenceCorrelationRule, ThresholdEvaluationPolicy,
+    ThresholdSignalMaterializationContext, ThresholdTimeBasis, ValueTypeResolver,
     compile_event_execution_plan, compile_sequence_correlation_plan,
     compile_threshold_execution_plan, evaluate_normalized_event_for_signal,
     evaluate_sequence_signals, evaluate_threshold_normalized_events, materialize_event_signal,
     materialize_sequence_correlation_finding, materialize_threshold_signal,
+    parse_sigma_threshold_rule, validate_rule_status,
 };
 use prost_types::{Struct, Timestamp, Value, value::Kind};
 use reqwest::Client;
@@ -39,6 +39,8 @@ const FAILED_LOGIN_RULE_ID: &str = "CER-DET-000101";
 const SUCCESSFUL_LOGIN_RULE_ID: &str = "CER-DET-000102";
 const PRIVILEGE_ESCALATION_RULE_ID: &str = "CER-DET-000103";
 const THRESHOLD_FAILED_LOGIN_RULE_ID: &str = "CER-DET-000001";
+const THRESHOLD_SIGMA_SOURCE: &str =
+    include_str!("../../../rules/sigma/linux_sshd_failed_login_burst.yml");
 const ACCOUNT_COMPROMISE_RULE_ID: &str = "CER-COR-0003";
 const RULE_VERSION: &str = "1";
 const CORRELATION_RULE_VERSION: &str = "2";
@@ -720,30 +722,31 @@ fn compile_event_rule(
 }
 
 fn compile_threshold_rule() -> Result<MvpCompiledThresholdPlan, RuntimeError> {
+    let imported = parse_sigma_threshold_rule(THRESHOLD_SIGMA_SOURCE)
+        .map_err(|error| runtime(format!("Sigma THRESHOLD import failed: {error}")))?;
+    if imported.rule_id.as_str() != THRESHOLD_FAILED_LOGIN_RULE_ID {
+        return Err(runtime(format!(
+            "Sigma THRESHOLD identity drift: expected {THRESHOLD_FAILED_LOGIN_RULE_ID}, observed {}",
+            imported.rule_id
+        )));
+    }
+    validate_rule_status(imported.status, AutomatedTestCoverage::complete())
+        .map_err(|error| runtime(format!("Sigma STABLE rule contract failed: {error}")))?;
+
     let optimizer = IdentityEventAstOptimizer;
     let profile = MvpFieldProfileResolver;
     let compiler = MvpPlanCompiler {
-        plan_id: "mvp-failed-login-threshold-v1".to_string(),
-        rule_id: THRESHOLD_FAILED_LOGIN_RULE_ID.to_string(),
-        rule_version: RULE_VERSION.to_string(),
-        plan_hash: sha256_lower_hex(b"mvp-failed-login-threshold-v1"),
+        plan_id: "sigma-linux-sshd-failed-login-burst-v1".to_string(),
+        rule_id: imported.rule_id.to_string(),
+        rule_version: imported.rule_version,
+        plan_hash: sha256_lower_hex(
+            format!("sigma-threshold-clickhouse-v1:{}", imported.content_hash).as_bytes(),
+        ),
     };
     let stages = EventCompilationStages::new(&optimizer, &profile, &compiler);
-    let rule = ThresholdRule {
-        filter: failed_login_expression(),
-        group_by: vec!["user.name".to_string(), "src_endpoint.ip".to_string()],
-        aggregation: ThresholdAggregation::Count,
-        threshold: 10,
-        window: ThresholdWindow {
-            duration_millis: 300_000,
-            time_basis: ThresholdTimeBasis::EventTime,
-            time_field: "time".to_string(),
-            late_event_policy: ThresholdLateEventPolicy::Accept,
-        },
-    };
 
     compile_threshold_execution_plan(
-        &rule,
+        &imported.threshold_rule,
         ExecutionBackend::ClickHouse,
         &MvpFieldResolver,
         &MvpValueResolver,
@@ -1037,4 +1040,199 @@ struct EventPresentation {
 
 fn runtime(message: impl Into<String>) -> RuntimeError {
     RuntimeError(message.into())
+}
+
+#[cfg(test)]
+mod stable_sigma_tests {
+    use std::{
+        collections::{BTreeMap, HashMap},
+        fs,
+        path::PathBuf,
+    };
+
+    use cerbero_common::contracts::v1::{ExecutionMode, NormalizedEvent};
+    use prost_types::{Struct, Timestamp, Value, value::Kind};
+    use serde::Deserialize;
+    use uuid::Uuid;
+
+    use super::{
+        MvpPolicy, THRESHOLD_FAILED_LOGIN_RULE_ID, compile_threshold_rule,
+        evaluate_threshold_normalized_events,
+    };
+
+    #[derive(Debug, Deserialize)]
+    struct FixtureEvent {
+        event_id: String,
+        user: Option<String>,
+        source_ip: Option<String>,
+        activity_name: String,
+        status: String,
+        event_time_ms: serde_json::Value,
+    }
+
+    fn fixture_path(relative: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/detections/CER-DET-000001")
+            .join(relative)
+    }
+
+    fn load_fixture(relative: &str) -> Vec<FixtureEvent> {
+        fs::read_to_string(fixture_path(relative))
+            .expect("fixture must be readable")
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| serde_json::from_str(line).expect("fixture JSON must be valid"))
+            .collect()
+    }
+
+    fn prost_string(value: String) -> Value {
+        Value {
+            kind: Some(Kind::StringValue(value)),
+        }
+    }
+
+    fn prost_number(value: f64) -> Value {
+        Value {
+            kind: Some(Kind::NumberValue(value)),
+        }
+    }
+
+    fn prost_struct(fields: BTreeMap<String, Value>) -> Value {
+        Value {
+            kind: Some(Kind::StructValue(Struct { fields })),
+        }
+    }
+
+    fn materialize_fixture(fixture: Vec<FixtureEvent>, tenant_id: &str) -> Vec<NormalizedEvent> {
+        let mut logical_ids = HashMap::<String, String>::new();
+
+        fixture
+            .into_iter()
+            .map(|row| {
+                let normalized_event_id = logical_ids
+                    .entry(row.event_id)
+                    .or_insert_with(|| Uuid::now_v7().to_string())
+                    .clone();
+
+                let mut fields = BTreeMap::new();
+                fields.insert("activity_name".to_string(), prost_string(row.activity_name));
+                fields.insert("status".to_string(), prost_string(row.status));
+
+                if let Some(user) = row.user {
+                    let mut nested = BTreeMap::new();
+                    nested.insert("name".to_string(), prost_string(user));
+                    fields.insert("user".to_string(), prost_struct(nested));
+                }
+                if let Some(source_ip) = row.source_ip {
+                    let mut nested = BTreeMap::new();
+                    nested.insert("ip".to_string(), prost_string(source_ip));
+                    fields.insert("src_endpoint".to_string(), prost_struct(nested));
+                }
+
+                let time = match row.event_time_ms {
+                    serde_json::Value::Number(number) => {
+                        prost_number(number.as_f64().expect("fixture time must fit f64"))
+                    }
+                    serde_json::Value::String(value) => prost_string(value),
+                    other => panic!("unsupported fixture time value: {other:?}"),
+                };
+                fields.insert("time".to_string(), time);
+
+                NormalizedEvent {
+                    normalized_event_id,
+                    raw_event_id: Uuid::now_v7().to_string(),
+                    tenant_id: tenant_id.to_string(),
+                    normalized_at: Some(Timestamp {
+                        seconds: 1_789_000_001,
+                        nanos: 0,
+                    }),
+                    ocsf_version: "1.9.0".to_string(),
+                    class_uid: 3002,
+                    category_uid: 3,
+                    severity: Some(2),
+                    activity_id: Some(1),
+                    ocsf_event: Some(Struct { fields }),
+                    parser_id: "stable-sigma-test".to_string(),
+                    parser_version: "1".to_string(),
+                    normalization_status: 1,
+                    normalized_hash_algorithm: "sha256".to_string(),
+                    normalized_hash: "0".repeat(64),
+                    pipeline_version: "step33-stable-sigma".to_string(),
+                }
+            })
+            .collect()
+    }
+
+    fn evaluate(
+        relative: &str,
+    ) -> Result<Vec<cerbero_detection_core::ThresholdSignalProvenance<String>>, String> {
+        let tenant_id = Uuid::now_v7().to_string();
+        let events = materialize_fixture(load_fixture(relative), &tenant_id);
+        let plan = compile_threshold_rule().map_err(|error| error.to_string())?;
+
+        evaluate_threshold_normalized_events(
+            &plan,
+            &events,
+            ExecutionMode::Replay,
+            Timestamp {
+                seconds: 1_789_000_600,
+                nanos: 0,
+            },
+            &MvpPolicy,
+        )
+        .map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn stable_sigma_positive_and_negative_datasets_execute_real_threshold_plan() {
+        let positive =
+            evaluate("positive/ten_failed.jsonl").expect("positive fixture must execute");
+        assert_eq!(positive.len(), 1);
+        assert_eq!(positive[0].rule_id.as_str(), THRESHOLD_FAILED_LOGIN_RULE_ID);
+        assert_eq!(positive[0].rule_version, "1");
+        assert_eq!(positive[0].normalized_event_ids.len(), 10);
+
+        let negative =
+            evaluate("negative/nine_failed.jsonl").expect("negative fixture must execute");
+        assert!(negative.is_empty());
+    }
+
+    #[test]
+    fn stable_sigma_duplicate_out_of_order_and_late_inputs_are_deterministic() {
+        for fixture in [
+            "edge_cases/duplicates.jsonl",
+            "edge_cases/out_of_order.jsonl",
+            "edge_cases/late_events.jsonl",
+        ] {
+            let matches = evaluate(fixture).expect("deterministic edge fixture must execute");
+            assert_eq!(matches.len(), 1, "unexpected result for {fixture}");
+            assert_eq!(
+                matches[0].normalized_event_ids.len(),
+                10,
+                "unexpected contributor count for {fixture}"
+            );
+        }
+    }
+
+    #[test]
+    fn stable_sigma_missing_group_field_does_not_false_positive() {
+        let matches = evaluate("edge_cases/missing_fields.jsonl")
+            .expect("missing field fixture must execute");
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn stable_sigma_unicode_group_key_is_deterministic() {
+        let matches = evaluate("edge_cases/strange_encoding.jsonl")
+            .expect("Unicode fixture must execute deterministically");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].normalized_event_ids.len(), 10);
+    }
+
+    #[test]
+    fn stable_sigma_invalid_timestamp_fails_closed() {
+        let error = evaluate("edge_cases/invalid_timestamp.jsonl")
+            .expect_err("invalid timestamp must fail closed");
+        assert!(error.contains("field time is not numeric"), "{error}");
+    }
 }

@@ -1,0 +1,11 @@
+{
+  "schema_version": "cerbero.compliance.mapping.v1",
+  "framework": "NIST CSF 2.0",
+  "mapping_version": "1",
+  "claim_policy": "supports/provides_evidence_for only; no control satisfaction claim",
+  "mappings": [
+    {"cerbero_capability": "monitoring_and_detection", "framework_id": "DETECT", "relation": "supports", "evidence": ["rules/sigma/linux_sshd_failed_login_burst.yml", "tests/detections/CER-DET-000001/"]},
+    {"cerbero_capability": "incident_cases", "framework_id": "RESPOND", "relation": "provides_evidence_for", "evidence": ["scripts/tests/step31-operational-api.sh"]},
+    {"cerbero_capability": "rule_governance_and_audit", "framework_id": "GOVERN", "relation": "provides_evidence_for", "evidence": ["crates/cerbero-detection-core/src/rule_contract.rs", "migrations/postgres/000007_operational_investigation.sql"]}
+  ]
+}

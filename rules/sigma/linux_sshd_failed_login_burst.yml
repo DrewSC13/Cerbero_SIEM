@@ -1,0 +1,36 @@
+title: CERBERO Linux SSH Failed Login
+id: 3f954d8c-9af7-4dcc-bacd-6bdfd2ad6b4b
+name: cerbero_linux_sshd_failed_login
+taxonomy: ocsf
+logsource:
+    product: linux
+    service: sshd
+detection:
+    selection:
+        activity_name: 'Logon'
+        status: 'Failure'
+    condition: selection
+---
+title: CERBERO Linux SSH Authentication Burst
+id: b6354e60-2047-4e3a-9bb3-a6531265a2fb
+status: stable
+description: Detects at least ten failed SSH logins for the same user and source IP within five minutes.
+author: CERBERO Project
+license: Apache-2.0
+taxonomy: ocsf
+correlation:
+    type: event_count
+    rules:
+        - cerbero_linux_sshd_failed_login
+    group-by:
+        - user.name
+        - src_endpoint.ip
+    timespan: 5m
+    condition:
+        gte: 10
+level: high
+cerbero_rule_id: CER-DET-000001
+cerbero_rule_version: '1'
+cerbero_time_basis: EVENT_TIME
+cerbero_time_field: time
+cerbero_late_event_policy: ACCEPT

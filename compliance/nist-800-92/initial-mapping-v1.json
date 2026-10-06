@@ -1,0 +1,11 @@
+{
+  "schema_version": "cerbero.compliance.mapping.v1",
+  "framework": "NIST SP 800-92",
+  "mapping_version": "1",
+  "claim_policy": "log-management lifecycle mapping",
+  "mappings": [
+    {"cerbero_capability": "ingest", "framework_id": "collection", "relation": "supports", "evidence": ["services/cerbero-ingest/"]},
+    {"cerbero_capability": "raw_store", "framework_id": "storage", "relation": "supports", "evidence": ["services/cerbero-raw-preserver/"]},
+    {"cerbero_capability": "normalization_detection_search", "framework_id": "analysis", "relation": "supports", "evidence": ["crates/cerbero-normalizer/", "crates/cerbero-detection-core/", "services/cerbero-api/search.go"]}
+  ]
+}

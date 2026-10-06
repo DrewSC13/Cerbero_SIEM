@@ -1,0 +1,12 @@
+{
+  "schema_version": "cerbero.compliance.mapping.v1",
+  "framework": "NIST SP 800-53 Rev. 5",
+  "mapping_version": "1",
+  "claim_policy": "family-level initial mapping; existence of evidence does not satisfy a control",
+  "mappings": [
+    {"cerbero_capability": "audit_log", "framework_id": "AU", "relation": "provides_evidence_for", "evidence": ["scripts/tests/step31-operational-api.sh"]},
+    {"cerbero_capability": "tenant_and_api_access_boundaries", "framework_id": "AC", "relation": "supports", "evidence": ["services/cerbero-api/api.go"]},
+    {"cerbero_capability": "incident_and_case_workflow", "framework_id": "IR", "relation": "supports", "evidence": ["services/cerbero-api/operational.go"]},
+    {"cerbero_capability": "detection_and_integrity", "framework_id": "SI", "relation": "supports", "evidence": ["rules/sigma/linux_sshd_failed_login_burst.yml", "crates/cerbero-integrity/"]}
+  ]
+}

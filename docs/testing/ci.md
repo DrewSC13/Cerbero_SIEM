@@ -131,3 +131,24 @@ unit -> contract -> component -> integration -> E2E -> performance/resilience
 ```
 
 Parser fuzzing, detection fixtures, service-level idempotency/retry, security, resilience, and end-to-end replay tests are introduced with the owning functionality rather than as empty test names. M1 already enforces wire compatibility, duplicate-message identity, and execution-mode replay semantics at the contract layer.
+
+## Step33 governed MVP gates
+
+`make mvp-gap-audit` validates the 15-row machine-readable MVP Definition-of-Done
+matrix without pretending that a passing audit means the MVP is complete.
+
+`make stable-detection` validates and executes the first STABLE Sigma detection
+asset, `CER-DET-000001`. The Sigma source is parsed by the Rust detection core,
+mapped to the existing backend-neutral AST/THRESHOLD contract, and executed by
+fixture-driven runtime tests. A STABLE rule is rejected by governance unless the
+positive, negative, and edge-case suite is present.
+
+`make architecture-evidence` validates the implementation-facing STRIDE threat
+model and versioned initial NIST/ISO/ATT&CK mappings without claiming framework
+compliance.
+
+`make e2e` is now the full Linux SSH source-to-TUI vertical. The historical
+staged boundary remains available as `make milestone0-e2e-boundary`.
+
+`make reproducibility` executes the full E2E twice from clean Compose state and
+compares semantic evidence. It explicitly does not claim bit-for-bit output.

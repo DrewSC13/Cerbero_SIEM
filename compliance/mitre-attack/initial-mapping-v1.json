@@ -1,0 +1,17 @@
+{
+  "schema_version": "cerbero.compliance.mapping.v1",
+  "framework": "MITRE ATT&CK",
+  "attack_version": "19.2",
+  "mapping_version": "1",
+  "catalog_status": "initial static mapping; automated catalog synchronization is not claimed",
+  "mappings": [
+    {
+      "cerbero_rule_id": "CER-DET-000001",
+      "cerbero_rule_version": "1",
+      "technique_id": "T1110",
+      "relation": "detects_behavior_consistent_with",
+      "platforms": ["Linux"],
+      "evidence": ["rules/sigma/linux_sshd_failed_login_burst.yml", "tests/detections/CER-DET-000001/"]
+    }
+  ]
+}
