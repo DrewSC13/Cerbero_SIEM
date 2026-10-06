@@ -9,6 +9,8 @@ license.workspace = true
 [dependencies]
 cerbero-common = { path = "../cerbero-common" }
 prost-types = "=0.14.4"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_yaml = "=0.9.34"
 
 [lints]
 workspace = true

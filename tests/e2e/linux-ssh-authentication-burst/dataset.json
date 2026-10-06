@@ -1,0 +1,31 @@
+{
+  "content_sha256": "35c4f539624d1d9ba72260faa98fc86bd825d1ace2f8bbf5bc77a4de6237fee6",
+  "dataset_id": "CERBERO-E2E-LINUX-SSH-BURST-0001",
+  "event_raw_sha256": [
+    "5488c7137a05fd55828bf535c4dde5228382babbbe0b6267a0b0f2ae66ade486",
+    "45e4e3b1b99f1b0a38e6bb32b2b5e1a6e695209d52eb502ea91ce557acbc1f57",
+    "9cab88419995d3e5e63c69ddd9d1c47ea9155734de639a2e316e1ad47ce11b3b",
+    "410fcc5e46d69a8308e21240c2b0dcbabb5a1cbdf9938a87335171eae1d02d5b",
+    "03d9042b9641c223ff45fda26575136c5afc29c7737091d3543f4d9e83ae261a",
+    "823335234779a8a60b314af85614f8227202a5be6db110588a3ddbd94cc6dc87",
+    "a5a8c1362300db90c0f2f3bc2e4a86941c84f2ad911b2d63ecb6e360bcfa5881",
+    "8ada03a9825ce59318ba836aa0e0f490d3a1fe88622ba09d8df49f1d2e17ad7f",
+    "e2e8f3ffa997c8083c157857a36325b2605b4ae165ecd8418958d0a16b3bcf32",
+    "f4ffa15837e26c7bb60a5228e384b8a1396c2dd779e2c8d55223d71df8a70be6"
+  ],
+  "expected_behavior": {
+    "findings": 0,
+    "matched_events": 10,
+    "normalized_events": 10,
+    "ocsf_class_uid": 3002,
+    "raw_objects": 10,
+    "rule_id": "CER-DET-000001",
+    "rule_version": "1",
+    "threshold_signal_count": 1,
+    "tui_search_rows": 10
+  },
+  "license_provenance": "Project-authored synthetic fixture; Apache-2.0 repository license",
+  "schema_version": "cerbero.e2e.dataset.v1",
+  "source": "CERBERO deterministic synthetic SSH authentication fixture",
+  "version": "1"
+}

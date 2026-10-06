@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "base_commit": "d69a3c887f67a61aa37440b03f17d1ef268c744f",
+  "generated_for": "CERBERO Step33 preliminary audit",
+  "semantics": {
+    "PASS": "Required MVP criterion has executable/reproducible evidence.",
+    "BLOCKED": "Required MVP criterion is absent, incomplete, or not demonstrated end-to-end.",
+    "DEFERRED": "Explicitly out of MVP or non-blocking OPEN decision; never counts as MVP PASS."
+  },
+  "criteria": [
+    {
+      "criterion_id": 1,
+      "requirement": "Reliable ingestion of syslog, journald and JSON",
+      "status": "BLOCKED",
+      "evidence": [
+        "docs/development/deferred-work.md",
+        "services/cerbero-ingest/",
+        "docs/testing/ci.md"
+      ],
+      "automated_gate": "existing source-boundary tests only",
+      "blocker_reason": "Production syslog transport and journald host collector are explicitly deferred while both are required by MVP."
+    },
+    {
+      "criterion_id": 2,
+      "requirement": "Raw data preserved with hash",
+      "status": "PASS",
+      "evidence": [
+        "services/cerbero-raw-preserver/",
+        "scripts/tests/raw-preservation-postgres.sh",
+        "migrations/postgres/000002_raw_preservation.sql"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 3,
+      "requirement": "OCSF normalization",
+      "status": "PASS",
+      "evidence": [
+        "crates/cerbero-normalizer/",
+        "migrations/clickhouse/000002_normalized_events.sql",
+        "scripts/tests/milestone0-integration.sh"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 4,
+      "requirement": "ClickHouse + PostgreSQL persistence",
+      "status": "PASS",
+      "evidence": [
+        "migrations/clickhouse/",
+        "migrations/postgres/",
+        "scripts/tests/milestone0-integration.sh"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 5,
+      "requirement": "Search from TUI",
+      "status": "PASS",
+      "evidence": [
+        "scripts/tests/step32-search-api.sh",
+        "crates/cerbero-tui/",
+        "services/cerbero-api/"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 6,
+      "requirement": "Sigma rules with tests",
+      "status": "PASS",
+      "evidence": [
+        "rules/sigma/linux_sshd_failed_login_burst.yml",
+        "crates/cerbero-detection-core/src/sigma.rs",
+        "tests/detections/CER-DET-000001/"
+      ],
+      "automated_gate": "make stable-detection"
+    },
+    {
+      "criterion_id": 7,
+      "requirement": "Temporal correlation",
+      "status": "PASS",
+      "evidence": [
+        "crates/cerbero-detection-core/src/correlation.rs",
+        "crates/cerbero-detection-runtime/src/mvp_batch.rs",
+        "scripts/tests/milestone0-integration.sh"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 8,
+      "requirement": "Findings",
+      "status": "PASS",
+      "evidence": [
+        "migrations/postgres/000006_analytical_runtime.sql",
+        "crates/cerbero-detection-core/src/correlation_finding_materializer.rs",
+        "scripts/tests/milestone0-integration.sh"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 9,
+      "requirement": "Entities + initial risk ledger",
+      "status": "PASS",
+      "evidence": [
+        "migrations/postgres/000007_operational_investigation.sql",
+        "scripts/tests/step31-operational-api.sh"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 10,
+      "requirement": "Cases + timeline",
+      "status": "PASS",
+      "evidence": [
+        "services/cerbero-api/operational.go",
+        "scripts/tests/step31-operational-api.sh"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 11,
+      "requirement": "Cerbero audit log",
+      "status": "PASS",
+      "evidence": [
+        "migrations/postgres/000007_operational_investigation.sql",
+        "scripts/tests/step31-operational-api.sh"
+      ],
+      "automated_gate": "make integration"
+    },
+    {
+      "criterion_id": 12,
+      "requirement": "Reproducible Docker Compose",
+      "status": "BLOCKED",
+      "evidence": [
+        "deploy/compose/compose.yaml",
+        "deploy/compose/images.lock",
+        "docs/development/deferred-work.md"
+      ],
+      "automated_gate": "partial via make integration",
+      "blocker_reason": "Infrastructure images are digest-pinned, but application service containers are not part of the composed E2E; full reproducible system composition is not demonstrated."
+    },
+    {
+      "criterion_id": 13,
+      "requirement": "Threat model + ADRs",
+      "status": "PASS",
+      "evidence": [
+        "docs/threat-model/README.md",
+        "docs/adr/"
+      ],
+      "automated_gate": "make architecture-evidence"
+    },
+    {
+      "criterion_id": 14,
+      "requirement": "Initial NIST/ISO/ATT&CK mappings",
+      "status": "PASS",
+      "evidence": [
+        "compliance/nist-csf/initial-mapping-v1.json",
+        "compliance/nist-800-53/initial-mapping-v1.json",
+        "compliance/nist-800-92/initial-mapping-v1.json",
+        "compliance/iso-27001/initial-mapping-v1.json",
+        "compliance/mitre-attack/initial-mapping-v1.json"
+      ],
+      "automated_gate": "make architecture-evidence"
+    },
+    {
+      "criterion_id": 15,
+      "requirement": "One fully reproducible end-to-end scenario",
+      "status": "PASS",
+      "evidence": [
+        "tests/e2e/linux-ssh-authentication-burst/",
+        "scripts/tests/step33-full-e2e.sh"
+      ],
+      "automated_gate": "make e2e"
+    }
+  ]
+}

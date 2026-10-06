@@ -1,0 +1,11 @@
+{
+  "schema_version": "cerbero.compliance.mapping.v1",
+  "framework": "ISO/IEC 27001:2022",
+  "mapping_version": "1",
+  "copyright_policy": "stores identifiers and CERBERO internal interpretation only; standard text is not copied",
+  "claim_policy": "provides evidence for an ISMS; does not establish conformity",
+  "mappings": [
+    {"cerbero_capability": "security_logging", "framework_id": "A.8.15", "relation": "provides_evidence_for", "internal_interpretation": "preserved and queryable security event records with integrity/provenance evidence"},
+    {"cerbero_capability": "monitoring_activities", "framework_id": "A.8.16", "relation": "provides_evidence_for", "internal_interpretation": "deterministic detection, search and investigation evidence"}
+  ]
+}

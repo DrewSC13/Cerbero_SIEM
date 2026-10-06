@@ -5,7 +5,7 @@ SHELL := /usr/bin/env bash
 PYTHONPATH := python/cerbero-tooling/src
 export PYTHONPATH
 
-.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate contracts-generated-check integration e2e ci dev-init dev-up dev-bootstrap dev-health dev-ingest dev-raw-preserver dev-normalizer dev-down dev-reset remote-readiness
+.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate contracts-generated-check stable-detection architecture-evidence mvp-gap-audit integration e2e reproducibility ci dev-init dev-up dev-bootstrap dev-health dev-ingest dev-raw-preserver dev-normalizer dev-down dev-reset remote-readiness
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "; printf "CERBERO bootstrap targets:\n"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -72,13 +72,32 @@ contracts-generate: ## Generate pinned Rust and Go bindings from canonical Proto
 contracts-generated-check: ## Regenerate bindings and fail if tracked output drifts.
 	@./scripts/contracts/check-generated.sh
 
-integration: ## Run infrastructure, ingest, and raw-preservation integration tests (requires Docker Compose).
+stable-detection: ## Validate the first STABLE Sigma asset and execute its fixture suite.
+	@python3 scripts/tests/step33-stable-detection.py
+	@cargo test -p cerbero-detection-core --locked sigma
+	@cargo test -p cerbero-detection-runtime --locked stable_sigma -- --nocapture
+
+architecture-evidence: ## Validate the Step33 threat model and initial compliance/ATT&CK mappings.
+	@python3 scripts/tests/step33-architecture-evidence.py
+
+mvp-gap-audit: ## Validate the Step33 machine-readable MVP gap matrix.
+	@python3 scripts/tests/step33-mvp-gap-audit.py
+
+integration: ## Run infrastructure and cross-component integration tests (requires Docker Compose).
 	@./scripts/tests/milestone0-integration.sh
 
-e2e: ## Report the explicit staged E2E boundary after durable Raw Preservation.
+e2e: ## Run the complete reproducible Linux SSH source-to-TUI analytical E2E.
+	@./scripts/tests/step33-full-e2e.sh
+
+reproducibility: ## Run the full E2E twice and compare semantic/environment evidence.
+	@./scripts/tests/step33-reproducibility.sh
+
+milestone0-e2e-boundary: ## Retain the historical staged E2E honesty gate.
 	@./scripts/tests/milestone0-e2e-gate.sh
 
-ci: verify format lint build test security-check contracts ## Local equivalent of the required CI gate.
+	@./scripts/tests/milestone0-e2e-gate.sh
+
+ci: verify format lint build test stable-detection architecture-evidence mvp-gap-audit security-check contracts ## Local equivalent of the required CI gate.
 	@echo "CERBERO local CI gate: PASS"
 
 dev-init: ## Create local development environment file and runtime directories.

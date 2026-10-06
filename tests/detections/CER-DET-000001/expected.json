@@ -1,0 +1,37 @@
+{
+  "rule_id": "CER-DET-000001",
+  "rule_version": "1",
+  "status": "STABLE",
+  "positive": {
+    "signals": 1,
+    "matched_events": 10
+  },
+  "negative": {
+    "signals": 0
+  },
+  "edge_cases": {
+    "duplicates": {
+      "signals": 1,
+      "matched_events": 10
+    },
+    "out_of_order": {
+      "signals": 1,
+      "matched_events": 10
+    },
+    "late_events": {
+      "signals": 1,
+      "matched_events": 10,
+      "policy": "ACCEPT"
+    },
+    "missing_fields": {
+      "signals": 0
+    },
+    "strange_encoding": {
+      "signals": 1,
+      "matched_events": 10
+    },
+    "invalid_timestamp": {
+      "error_contains": "field time is not numeric"
+    }
+  }
+}
