@@ -1,13 +1,18 @@
-# Step33 reproducibility evidence
+# Step34 reproducibility evidence
 
-`make reproducibility` runs the complete Linux SSH authentication-burst E2E twice
-from clean Compose state and requires identical **semantic evidence**.
+`make reproducibility` runs the Step34 composed source-to-API E2E twice from clean Compose project state and requires identical **semantic evidence**.
 
-The gate records the dataset/rule content hashes, dependency lock hashes,
-container image lock digest, migration versions, contract version, Git commit,
-and a semantic E2E fingerprint.
+The gate records:
 
-CERBERO classifies this gate as **environment-reproducible / semantic**. It does
-not claim bit-for-bit reproducible artifacts. Runtime UUIDv7 values, build
-timestamps, and normalization processing timestamps are deliberately excluded
-from semantic equivalence.
+- dataset and raw SHA-256 evidence;
+- dependency lock hashes;
+- the digest-pinned external/container base image lock;
+- source and rendered Compose hashes;
+- application Dockerfile hashes;
+- application image IDs observed in each run;
+- PostgreSQL and ClickHouse migration versions;
+- contract version and Git commit.
+
+CERBERO classifies this gate as **environment-reproducible / semantic**. It does not claim bit-for-bit reproducible application images or artifacts. Runtime UUIDv7 values, timestamps and other nondeterministic runtime identifiers are deliberately excluded from semantic equivalence. Application image IDs are evidence and may be compared, but equality is not promoted to a bit-for-bit guarantee.
+
+The earlier Step33 analytical E2E remains available through `make e2e`; Step34 does not weaken or replace its Signal/TUI/provenance coverage.

@@ -5,7 +5,7 @@ SHELL := /usr/bin/env bash
 PYTHONPATH := python/cerbero-tooling/src
 export PYTHONPATH
 
-.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate contracts-generated-check stable-detection architecture-evidence mvp-gap-audit integration e2e reproducibility ci dev-init dev-up dev-bootstrap dev-health dev-ingest dev-raw-preserver dev-normalizer dev-down dev-reset remote-readiness
+.PHONY: help doctor verify baseline-check format lint build test rust-check go-check python-check security-check contracts contracts-generate contracts-generated-check stable-detection architecture-evidence mvp-gap-audit integration e2e source-ingest compose-e2e reproducibility mvp-closure milestone0-e2e-boundary ci dev-init dev-up dev-bootstrap dev-health dev-ingest dev-raw-preserver dev-normalizer dev-down dev-reset remote-readiness
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "; printf "CERBERO bootstrap targets:\n"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -89,8 +89,17 @@ integration: ## Run infrastructure and cross-component integration tests (requir
 e2e: ## Run the complete reproducible Linux SSH source-to-TUI analytical E2E.
 	@./scripts/tests/step33-full-e2e.sh
 
-reproducibility: ## Run the full E2E twice and compare semantic/environment evidence.
-	@./scripts/tests/step33-reproducibility.sh
+source-ingest: ## Prove JSON, RFC6587 TCP syslog, and journald durable source admission.
+	@./scripts/tests/step34-source-ingest.sh
+
+compose-e2e: ## Build and run the Step34 composed syslog-to-API MVP acceptance path.
+	@./scripts/tests/step34-compose-e2e.sh
+
+reproducibility: ## Run the Step34 composed E2E twice and compare semantic/environment evidence.
+	@./scripts/tests/step34-reproducibility.sh
+
+mvp-closure: e2e source-ingest reproducibility mvp-gap-audit ## Execute the final frozen MVP closure gates.
+	@python3 scripts/tests/step34-mvp-closure.py
 
 milestone0-e2e-boundary: ## Retain the historical staged E2E honesty gate.
 	@./scripts/tests/milestone0-e2e-gate.sh

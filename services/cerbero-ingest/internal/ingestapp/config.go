@@ -19,6 +19,7 @@ const (
 type Config struct {
 	SecurityProfile           string
 	InsecureDevelopment       bool
+	ContainerDevelopment      bool
 	ListenAddress             string
 	IngestPath                string
 	MaxPayloadSize            uint64
@@ -54,6 +55,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	config := Config{
 		SecurityProfile:           profile,
 		InsecureDevelopment:       parseBool(getenv("CERBERO_INGEST_INSECURE_DEVELOPMENT")),
+		ContainerDevelopment:      parseBool(getenv("CERBERO_INGEST_CONTAINER_DEVELOPMENT")),
 		ListenAddress:             strings.TrimSpace(getenv("CERBERO_INGEST_LISTEN_ADDRESS")),
 		IngestPath:                strings.TrimSpace(getenv("CERBERO_INGEST_HTTP_PATH")),
 		ComponentVersion:          strings.TrimSpace(getenv("CERBERO_INGEST_COMPONENT_VERSION")),
@@ -111,7 +113,7 @@ func (c Config) Validate() error {
 	if !c.InsecureDevelopment {
 		return errors.New("DEVELOPMENT profile requires explicit CERBERO_INGEST_INSECURE_DEVELOPMENT=1")
 	}
-	if err := validateLoopbackAddress(c.ListenAddress); err != nil {
+	if err := validateDevelopmentAddress(c.ListenAddress, c.ContainerDevelopment); err != nil {
 		return err
 	}
 	if c.IngestPath == "" || !strings.HasPrefix(c.IngestPath, "/") {
@@ -148,16 +150,22 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func validateLoopbackAddress(address string) error {
+func validateDevelopmentAddress(address string, containerDevelopment bool) error {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return fmt.Errorf("CERBERO_INGEST_LISTEN_ADDRESS must be host:port: %w", err)
 	}
 	ip := net.ParseIP(host)
-	if ip == nil || !ip.IsLoopback() {
-		return errors.New("insecure DEVELOPMENT ingest must bind to an explicit loopback IP")
+	if ip == nil {
+		return errors.New("CERBERO_INGEST_LISTEN_ADDRESS must use an explicit IP address")
 	}
-	return nil
+	if ip.IsLoopback() {
+		return nil
+	}
+	if containerDevelopment && ip.IsUnspecified() {
+		return nil
+	}
+	return errors.New("insecure DEVELOPMENT ingest must bind to loopback unless CERBERO_INGEST_CONTAINER_DEVELOPMENT=1 permits an unspecified container address")
 }
 
 func requiredUint(getenv func(string) string, name string) (uint64, error) {

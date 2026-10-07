@@ -157,8 +157,20 @@ With Step 6, the M2 side of the INGEST definition of done is closed. Durable con
 
 Payload preparation is not a durable-acceptance operation and must not be exposed as an HTTP `2xx` success by itself. The architecture requires durable JetStream admission before reporting acceptance. Therefore these responsibilities remain outside Milestone 2:
 
-- production syslog network transport/framing and concrete journald host collector;
 - production TLS/mTLS source authentication, certificate/revocation integration, and production security-profile wiring;
+- UDP syslog and any additional syslog framing modes beyond the governed RFC6587 octet-counting v1 frontend;
 - raw-preserver, Raw Store persistence, `raw.persisted`, ACK/retry/DLQ behavior (Milestone 3).
 
 This boundary prevents M2 unit code from claiming the stronger acceptance guarantee that only the durable event bus can provide.
+
+
+## Step34 — MVP source-ingest closure
+
+Step34 completes the functional MVP source boundary without changing the locked RawEvent/JetStream semantics.
+
+- `cerbero-syslog` is a real TCP frontend using ADR-0013 RFC6587 octet-counting only. It enforces frame size, read timeout, connection-rate, concurrent-connection and event-rate limits; preserves the exact frame bytes; and waits for durable JetStream admission before consuming the next frame on a connection. UDP is not enabled.
+- `cerbero-journald` is a host-local DEVELOPMENT collector. It consumes `journalctl --output=export`, preserves ordered/repeated fields and binary bytes in the ADR-0012 canonical representation, and advances its persisted journald cursor only after durable JetStream acceptance. A crash between acceptance and cursor persistence can cause replay, not silent loss; the pipeline remains at-least-once.
+- Deterministic journald tests use an export-format fixture path rather than requiring systemd/journald availability in CI.
+- JSON/HTTP, syslog TCP and journald all enter the same authenticated/authorized IngestCore and synchronous JetStream durable-acceptance boundary.
+
+These executable runtimes remain explicitly DEVELOPMENT-only. Step34 does not invent production mTLS/enrollment or a production secret backend and does not redefine `cerbero-agent`; managed endpoint-agent hardening remains a later security/deployment concern.

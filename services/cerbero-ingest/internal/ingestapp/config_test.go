@@ -9,6 +9,7 @@ func validEnvironment() map[string]string {
 	return map[string]string{
 		"CERBERO_SECURITY_PROFILE":              "DEVELOPMENT",
 		"CERBERO_INGEST_INSECURE_DEVELOPMENT":   "1",
+		"CERBERO_INGEST_CONTAINER_DEVELOPMENT":  "0",
 		"CERBERO_INGEST_LISTEN_ADDRESS":         "127.0.0.1:19080",
 		"CERBERO_INGEST_HTTP_PATH":              "/ingest/v1/events",
 		"CERBERO_INGEST_MAX_PAYLOAD_SIZE":       "1048576",
@@ -66,6 +67,20 @@ func TestLoadConfigRequiresExplicitInsecureDevelopmentAndLoopback(t *testing.T) 
 	values["CERBERO_INGEST_LISTEN_ADDRESS"] = "0.0.0.0:19080"
 	if _, err := LoadConfig(envLookup(values)); err == nil {
 		t.Fatal("LoadConfig() accepted non-loopback insecure development bind")
+	}
+}
+
+func TestLoadConfigAllowsOnlyExplicitContainerWildcardDevelopmentBind(t *testing.T) {
+	values := validEnvironment()
+	values["CERBERO_INGEST_LISTEN_ADDRESS"] = "0.0.0.0:19080"
+	values["CERBERO_INGEST_CONTAINER_DEVELOPMENT"] = "1"
+	if _, err := LoadConfig(envLookup(values)); err != nil {
+		t.Fatalf("LoadConfig() rejected explicit container development bind: %v", err)
+	}
+
+	values["CERBERO_INGEST_LISTEN_ADDRESS"] = "192.0.2.10:19080"
+	if _, err := LoadConfig(envLookup(values)); err == nil {
+		t.Fatal("LoadConfig() accepted a specific non-loopback DEVELOPMENT bind")
 	}
 }
 

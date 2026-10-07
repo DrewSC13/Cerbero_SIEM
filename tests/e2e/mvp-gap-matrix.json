@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "base_commit": "d69a3c887f67a61aa37440b03f17d1ef268c744f",
-  "generated_for": "CERBERO Step33 preliminary audit",
+  "base_commit": "f8db7ee5695d1701953ba6ccba836fecd94a248e",
+  "generated_for": "CERBERO Step34 MVP closure",
   "semantics": {
     "PASS": "Required MVP criterion has executable/reproducible evidence.",
     "BLOCKED": "Required MVP criterion is absent, incomplete, or not demonstrated end-to-end.",
@@ -11,14 +11,15 @@
     {
       "criterion_id": 1,
       "requirement": "Reliable ingestion of syslog, journald and JSON",
-      "status": "BLOCKED",
+      "status": "PASS",
       "evidence": [
-        "docs/development/deferred-work.md",
-        "services/cerbero-ingest/",
-        "docs/testing/ci.md"
+        "services/cerbero-ingest/internal/httpingest/handler.go",
+        "services/cerbero-ingest/internal/syslogingest/tcp.go",
+        "services/cerbero-ingest/internal/journald/export.go",
+        "docs/adr/ADR-0013-syslog-tcp-octet-counting-v1.md",
+        "scripts/tests/step34-source-ingest.sh"
       ],
-      "automated_gate": "existing source-boundary tests only",
-      "blocker_reason": "Production syslog transport and journald host collector are explicitly deferred while both are required by MVP."
+      "automated_gate": "make source-ingest"
     },
     {
       "criterion_id": 2,
@@ -130,14 +131,17 @@
     {
       "criterion_id": 12,
       "requirement": "Reproducible Docker Compose",
-      "status": "BLOCKED",
+      "status": "PASS",
       "evidence": [
+        ".dockerignore",
         "deploy/compose/compose.yaml",
         "deploy/compose/images.lock",
-        "docs/development/deferred-work.md"
+        "deploy/docker/Dockerfile.go-service",
+        "deploy/docker/Dockerfile.normalizer",
+        "scripts/tests/step34-compose-e2e.sh",
+        "scripts/tests/step34-reproducibility.sh"
       ],
-      "automated_gate": "partial via make integration",
-      "blocker_reason": "Infrastructure images are digest-pinned, but application service containers are not part of the composed E2E; full reproducible system composition is not demonstrated."
+      "automated_gate": "make reproducibility"
     },
     {
       "criterion_id": 13,

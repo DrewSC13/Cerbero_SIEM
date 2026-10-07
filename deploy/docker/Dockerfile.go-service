@@ -1,0 +1,30 @@
+ARG GO_BUILD_IMAGE=golang:1.27.1-bookworm@sha256:69a7b9788769bec032d238959b61854e9ae87f57be9029ec04e9885fabf99195
+FROM ${GO_BUILD_IMAGE} AS build
+WORKDIR /src
+COPY . .
+ARG CERBERO_GO_PACKAGE
+RUN --mount=type=cache,id=cerbero-go-mod,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,id=cerbero-go-build,target=/root/.cache/go-build,sharing=locked \
+    test -n "${CERBERO_GO_PACKAGE}" \
+    && test "$(go version | awk '{print $3}')" = "go1.27.1" \
+    && resolved=0 \
+    && attempt=1 \
+    && while [ "$attempt" -le 4 ]; do \
+         if go list -deps "${CERBERO_GO_PACKAGE}" >/dev/null; then \
+           resolved=1; \
+           break; \
+         fi; \
+         if [ "$attempt" -lt 4 ]; then \
+           sleep_seconds=$((attempt * 5)); \
+           echo "Go dependency resolution attempt ${attempt} failed; retrying in ${sleep_seconds}s" >&2; \
+           sleep "$sleep_seconds"; \
+         fi; \
+         attempt=$((attempt + 1)); \
+       done \
+    && test "$resolved" -eq 1 \
+    && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-buildid=" \
+       -o /out/cerbero-service "${CERBERO_GO_PACKAGE}"
+
+FROM scratch
+COPY --from=build /out/cerbero-service /cerbero-service
+ENTRYPOINT ["/cerbero-service"]

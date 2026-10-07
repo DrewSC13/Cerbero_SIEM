@@ -152,3 +152,15 @@ staged boundary remains available as `make milestone0-e2e-boundary`.
 
 `make reproducibility` executes the full E2E twice from clean Compose state and
 compares semantic evidence. It explicitly does not claim bit-for-bit output.
+
+
+## Step34 MVP closure gates
+
+The final MVP closure adds three explicit gates while retaining the Step33 analytical E2E:
+
+- `make source-ingest` — real JSON/HTTP, RFC6587 TCP syslog and journald durable-admission evidence;
+- `make compose-e2e` — source-built application containers plus PostgreSQL, ClickHouse, NATS and Raw Store, proving syslog → preserve → normalize → store → API;
+- `make reproducibility` — two clean composed runs with semantic/environment evidence and no bit-for-bit claim;
+- `make mvp-closure` — runs the analytical E2E, source-ingest gate, composed reproducibility and the strict 15-row MVP closure audit.
+
+GitHub CI keeps the static/unit gate separate and runs `make integration` followed by `make mvp-closure` in the infrastructure job. The same commands remain executable locally; GitHub is not required for the functional validation.
