@@ -1,0 +1,11 @@
+ARG RUST_BUILD_IMAGE=rust:1.98.1-bookworm@sha256:9a73a5088750b4c95158ab26629c854c3d6fc4b173cb7bc8079ad252d8ed7bfa
+ARG DEBIAN_RUNTIME_IMAGE=debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
+FROM ${RUST_BUILD_IMAGE} AS build
+WORKDIR /src
+COPY . .
+RUN rustc --version | grep -F 'rustc 1.98.1 ' \
+    && cargo build -p cerbero-normalizer --locked --release
+
+FROM ${DEBIAN_RUNTIME_IMAGE}
+COPY --from=build /src/target/release/cerbero-normalizer /usr/local/bin/cerbero-normalizer
+ENTRYPOINT ["/usr/local/bin/cerbero-normalizer"]

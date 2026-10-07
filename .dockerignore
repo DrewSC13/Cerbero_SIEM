@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+var/
+target/
+**/target/
+**/__pycache__/
+*.pyc
+*.pyo
+*.patch
+*.bundle
+*.tar.gz
+*.pdf

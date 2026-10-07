@@ -37,8 +37,18 @@ jobs:
 
   infrastructure-integration:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
       - name: Run Compose integration
         run: make integration
+      - name: Run MVP closure gates
+        run: make mvp-closure
